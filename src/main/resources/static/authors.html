@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Бібліотека - Автори</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+
+    <style>
+        body { background-color: #f4f7f6; font-family: 'Segoe UI', Tahoma, sans-serif; }
+
+        .navbar-brand { font-weight: 700; letter-spacing: 1px; }
+        .nav-link { font-weight: 500; }
+
+        .group-section-title {
+            border-left: 5px solid #198754; /* Зелений колір для авторів */
+            padding-left: 15px; margin-top: 40px; margin-bottom: 20px;
+            color: #2c3e50; font-weight: 700; text-transform: uppercase;
+        }
+
+        .author-card {
+            border: none; border-radius: 12px;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            background: white; height: 100%; overflow: hidden;
+        }
+        .author-card:hover { transform: translateY(-5px); box-shadow: 0 10px 20px rgba(0,0,0,0.1); }
+
+        .card-header-img {
+            height: 140px;
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+            display: flex; align-items: center; justify-content: center;
+            color: white; font-size: 3rem;
+        }
+
+        .author-name { font-weight: 700; font-size: 1.2rem; color: #333; margin-bottom: 0.5rem; }
+        .author-meta { font-size: 0.95rem; color: #666; margin-bottom: 0.2rem; }
+
+        .modal-overlay { background: rgba(0,0,0,0.5); position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1040; display: block; }
+        .modal.show { display: block; }
+
+        .cursor-pointer { cursor: pointer; }
+
+        .btn-delete-card {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 10;
+            background: rgba(255, 255, 255, 0.8);
+            border: none;
+            color: #dc3545;
+            border-radius: 50%;
+            width: 32px; height: 32px;
+            display: flex; align-items: center; justify-content: center;
+            transition: all 0.2s;
+            opacity: 0;
+        }
+
+        .author-card:hover .btn-delete-card {
+            opacity: 1;
+        }
+        .btn-delete-card:hover {
+            background: #dc3545; color: white; transform: scale(1.1);
+        }
+    </style>
+</head>
+<body>
+
+<div id="app">
+
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark sticky-top mb-4 shadow-sm">
+        <div class="container">
+            <a class="navbar-brand" href="index.html">
+                <i class="bi bi-book-half me-2"></i>Library App
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item">
+                        <a class="nav-link" href="books.html">Книги</a> </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="authors.html">Автори</a> </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="halls.html">Зали</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="readers.html">Читачі</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="librarians.html">Бібліотекарі</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="loans.html">Позики</a>
+                    </li>
+                </ul>
+                <div class="d-flex align-items-center">
+                    <button class="btn btn-outline-light me-2 rounded-circle" title="Пошук" @click="openSearchModal">
+                        <i class="bi bi-search"></i>
+                    </button>
+                    <button class="btn btn-primary"><i class="bi bi-person-circle me-2"></i>Вхід</button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container pb-5">
+
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h2 class="fw-bold text-dark">Автори</h2>
+                <p class="text-secondary mb-0">База даних письменників</p>
+            </div>
+            <button class="btn btn-success shadow-sm" @click="openAddModal">
+                <i class="bi bi-plus-lg me-2"></i>Додати автора
+            </button>
+        </div>
+
+        <div v-if="loading" class="text-center py-5"><div class="spinner-border text-success"></div></div>
+        <div v-if="error" class="alert alert-danger text-center">{{ error }}</div>
+
+        <div v-if="!loading && !error">
+            <div v-for="(authorsGroup, nationality) in groupedAuthors" :key="nationality">
+
+                <h3 class="group-section-title">
+                    <i class="bi bi-globe-americas me-2"></i> {{ nationality }}
+                </h3>
+
+                <div class="row row-cols-1 row-cols-md-2 row-cols-lg-4 g-4">
+                    <div class="col" v-for="author in authorsGroup" :key="author.id">
+                        <div class="author-card position-relative h-100 cursor-pointer" @click="goToProfile(author.id)">
+
+                            <button class="btn-delete-card shadow-sm"
+                                    @click.stop="deleteAuthor(author)"
+                                    title="Видалити автора">
+                                <i class="bi bi-trash"></i>
+                            </button>
+
+                            <div class="card-header-img">
+                                <i class="bi bi-person-fill"></i>
+                            </div>
+                            <div class="card-body text-center">
+                                <h5 class="author-name">{{ author.name }}</h5>
+                                <p class="author-meta text-muted mb-3">
+                                    <i class="bi bi-calendar-event me-1"></i>
+                                    {{ formatDate(author.birthDate) }}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <div v-if="!loading && !error && authors.length === 0" class="text-center mt-5">
+            <div class="text-muted p-5 bg-white rounded shadow-sm">
+                <i class="bi bi-person-x display-4 mb-3 d-block"></i>
+                Авторів ще немає. Додайте першого!
+            </div>
+        </div>
+
+        <div v-if="showModal">
+            <div class="modal-overlay" @click="closeModal"></div>
+            <div class="modal show" tabindex="-1">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Новий автор</h5>
+                            <button type="button" class="btn-close" @click="closeModal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <form @submit.prevent="saveAuthor">
+                                <div class="mb-3">
+                                    <label class="form-label">Ім'я та Прізвище</label>
+                                    <input v-model="newAuthor.name" type="text" class="form-control" placeholder="Тарас Шевченко" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Національність</label>
+                                    <input v-model="newAuthor.nationality" type="text" class="form-control" placeholder="Україна" required>
+                                    <div class="form-text">Це поле використовується для групування.</div>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Дата народження</label>
+                                    <input v-model="newAuthor.birthDate" type="date" class="form-control" required>
+                                </div>
+
+                                <div class="d-grid">
+                                    <button type="submit" class="btn btn-success">Зберегти автора</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+    <div v-if="showSearchModal">
+        <div class="modal-overlay" @click="closeSearchModal"></div>
+        <div class="modal show" tabindex="-1">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title"><i class="bi bi-search me-2"></i>Пошук по бібліотеці</h5>
+                        <button type="button" class="btn-close" @click="closeSearchModal"></button>
+                    </div>
+                    <div class="modal-body">
+
+                        <form @submit.prevent="performSearch" class="mb-4">
+                            <div class="input-group input-group-lg">
+                                <select v-model="searchType" class="form-select" style="max-width: 150px; background-color: #f8f9fa;">
+                                    <option value="books">Книги</option>
+                                    <option value="authors">Автори</option>
+                                    <option value="readers">Читачі</option>
+                                </select>
+                                <input v-model="searchQuery" type="text" class="form-control" placeholder="Введіть запит..." ref="searchInput" required>
+                                <button class="btn btn-primary" type="submit">Знайти</button>
+                            </div>
+                        </form>
+
+                        <div v-if="isSearching" class="text-center py-4">
+                            <div class="spinner-border text-primary"></div>
+                        </div>
+
+                        <div v-else-if="searchResults.length > 0">
+                            <h6 class="text-muted mb-3">Знайдено {{ searchResults.length }} результатів:</h6>
+                            <div class="list-group">
+                                <a v-for="item in searchResults" :key="item.id"
+                                   :href="getLink(item)"
+                                   class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+
+                                    <div>
+                                        <span v-if="searchType === 'books'">
+                                            <i class="bi bi-book me-2 text-primary"></i> <strong>{{ item.title }}</strong>
+                                            <small class="text-muted ms-2" v-if="item.author">by {{ item.author.name }}</small>
+                                        </span>
+                                        <span v-else-if="searchType === 'authors'">
+                                            <i class="bi bi-person-fill me-2 text-success"></i> <strong>{{ item.name }}</strong>
+                                            <small class="text-muted ms-2">{{ item.nationality }}</small>
+                                        </span>
+                                        <span v-else>
+                                            <i class="bi bi-person-badge me-2 text-warning"></i> <strong>{{ item.name }}</strong>
+                                            <small class="text-muted ms-2">{{ item.phone }}</small>
+                                        </span>
+                                    </div>
+
+                                    <i class="bi bi-chevron-right text-muted small"></i>
+                                </a>
+                            </div>
+                        </div>
+
+                        <div v-else-if="hasSearched" class="text-center py-5 text-muted">
+                            <i class="bi bi-emoji-frown display-4 mb-2 d-block"></i>
+                            Нічого не знайдено. Спробуйте інший запит.
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/lodash@4.17.21/lodash.min.js"></script>
+
+<script>
+    const { createApp } = Vue;
+    const API_URL = 'http://localhost:8080/Library/api';
+
+    createApp({
+        data() {
+            return {
+                authors: [],
+                loading: true,
+                error: null,
+                showModal: false,
+                newAuthor: {
+                    name: '',
+                    nationality: '',
+                    birthDate: ''
+                },
+                showSearchModal: false,
+                searchQuery: '',
+                searchType: 'books',
+                searchResults: [],
+                isSearching: false,
+                hasSearched: false
+            }
+        },
+        computed: {
+            groupedAuthors() {
+                return _.groupBy(this.authors, (a) => a.nationality || 'Не вказано');
+            }
+        },
+        methods: {
+            async loadData() {
+                this.loading = true;
+                try {
+                    const response = await fetch(`${API_URL}/authors`);
+                    if(response.ok) {
+                        this.authors = await response.json();
+                    } else {
+                        throw new Error("Failed to fetch");
+                    }
+                } catch (err) {
+                    this.error = "Помилка завантаження авторів!";
+                    console.error(err);
+                } finally {
+                    this.loading = false;
+                }
+            },
+
+            openAddModal() {
+                this.showModal = true;
+            },
+
+            closeModal() {
+                this.showModal = false;
+                this.newAuthor = { name: '', nationality: '', birthDate: '' };
+            },
+
+            async saveAuthor() {
+                try {
+                    const response = await fetch(`${API_URL}/authors`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(this.newAuthor)
+                    });
+
+                    if (response.ok) {
+                        alert("Автора успішно додано!");
+                        this.closeModal();
+                        this.loadData();
+                    } else {
+                        const err = await response.json();
+                        alert("Помилка: " + (err.message || response.status));
+                    }
+                } catch (err) {
+                    alert("Помилка сервера");
+                }
+            },
+
+            formatDate(dateString) {
+                if (!dateString) return 'Дата невідома';
+                return new Date(dateString).toLocaleDateString('uk-UA', {
+                    year: 'numeric', month: 'long', day: 'numeric'
+                });
+            },
+
+            goToProfile(id) {
+                window.location.href = `author.html?id=${id}`;
+            },
+
+            async deleteAuthor(author) {
+                if (!confirm(`Видалити автора "${author.name}"?`)) return;
+
+                try {
+                    const response = await fetch(`${API_URL}/authors/${author.id}`, { method: 'DELETE' });
+
+                    if (response.ok) {
+                        alert("Автора видалено.");
+                        this.loadData();
+                    } else {
+                        const data = await response.json().catch(() => ({}));
+                        alert("Помилка: " + (data.message || "Не вдалося видалити автора"));
+                    }
+                } catch (err) {
+                    alert("Помилка з'єднання");
+                }
+            },
+
+            openSearchModal() {
+                this.showSearchModal = true;
+                this.searchResults = [];
+                this.searchQuery = '';
+                this.hasSearched = false;
+                setTimeout(() => {
+                    if(this.$refs.searchInput) this.$refs.searchInput.focus();
+                }, 100);
+            },
+
+            closeSearchModal() {
+                this.showSearchModal = false;
+            },
+
+            async performSearch() {
+                if (!this.searchQuery.trim()) return;
+
+                this.isSearching = true;
+                this.hasSearched = true;
+                this.searchResults = [];
+
+                try {
+                    const url = `${API_URL}/${this.searchType}/search?query=${encodeURIComponent(this.searchQuery)}`;
+
+                    const response = await fetch(url);
+                    if (response.ok) {
+                        this.searchResults = await response.json();
+                    }
+                } catch (error) {
+                    console.error("Помилка пошуку:", error);
+                } finally {
+                    this.isSearching = false;
+                }
+            },
+
+            getLink(item) {
+                if (this.searchType === 'books') return `hall.html?id=${item.hall ? item.hall.id : ''}`;
+                if (this.searchType === 'authors') return `author.html?id=${item.id}`;
+                if (this.searchType === 'readers') return `reader.html?id=${item.id}`;
+                return '#';
+            }
+        },
+        mounted() {
+            this.loadData();
+        }
+    }).mount('#app');
+</script>
+
+</body>
+</html>

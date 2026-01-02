@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Бібліотека - Зали</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+
+    <style>
+        body { background-color: #f4f7f6; font-family: 'Segoe UI', Tahoma, sans-serif; }
+
+        .floor-section-title {
+            border-left: 5px solid #6610f2; /* Фіолетовий колір для залів */
+            padding-left: 15px; margin-top: 40px; margin-bottom: 20px;
+            color: #2c3e50; font-weight: 700; text-transform: uppercase;
+        }
+
+        .hall-card {
+            border: none; border-radius: 12px;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            background: white; height: 100%; overflow: hidden;
+        }
+        .hall-card:hover { transform: translateY(-5px); box-shadow: 0 10px 20px rgba(0,0,0,0.1); }
+
+        .card-header-img {
+            height: 120px;
+            background: linear-gradient(135deg, #a18cd1 0%, #fbc2eb 100%);
+            display: flex; align-items: center; justify-content: center;
+            color: white; font-size: 3rem;
+        }
+
+        .hall-name { font-weight: 700; font-size: 1.2rem; color: #333; margin-bottom: 0.5rem; }
+        .librarian-info { font-size: 0.9rem; color: #666; }
+
+        .modal-overlay { background: rgba(0,0,0,0.5); position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1040; display: block; }
+        .modal.show { display: block; }
+
+        .cursor-pointer { cursor: pointer; }
+
+        .btn-delete-card {
+            position: absolute;
+            top: 10px; right: 10px; z-index: 10;
+            background: rgba(255, 255, 255, 0.8);
+            border: none; color: #dc3545;
+            border-radius: 50%;
+            width: 32px; height: 32px;
+            display: flex; align-items: center; justify-content: center;
+            transition: all 0.2s;
+            opacity: 0;
+        }
+        .hall-card:hover .btn-delete-card { opacity: 1; }
+        .btn-delete-card:hover { background: #dc3545; color: white; transform: scale(1.1); }
+    </style>
+</head>
+<body>
+
+<div id="app">
+
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark sticky-top mb-4 shadow-sm">
+        <div class="container">
+            <a class="navbar-brand" href="index.html">
+                <i class="bi bi-book-half me-2"></i>Library App
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item"><a class="nav-link" href="books.html">Книги</a></li>
+                    <li class="nav-item"><a class="nav-link" href="authors.html">Автори</a></li>
+                    <li class="nav-item"><a class="nav-link active" href="halls.html">Зали</a></li> <li class="nav-item"><a class="nav-link" href="readers.html">Читачі</a></li>
+                    <li class="nav-item"><a class="nav-link" href="librarians.html">Бібліотекарі</a></li>
+                    <li class="nav-item"><a class="nav-link" href="loans.html">Позики</a></li>
+                </ul>
+                <div class="d-flex align-items-center">
+                    <button class="btn btn-outline-light me-2 rounded-circle" title="Пошук" @click="openSearchModal">
+                        <i class="bi bi-search"></i>
+                    </button>
+                    <button class="btn btn-primary" title="Увійти в систему">
+                        <i class="bi bi-person-circle me-2"></i>Вхід
+                    </button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container pb-5">
+
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h2 class="fw-bold text-dark">Читальні зали</h2>
+                <p class="text-secondary mb-0">Локації та поверхи</p>
+            </div>
+            <button class="btn btn-primary shadow-sm" style="background-color: #6610f2; border-color: #6610f2;" @click="openAddModal">
+                <i class="bi bi-plus-lg me-2"></i>Додати зал
+            </button>
+        </div>
+
+        <div v-if="loading" class="text-center py-5"><div class="spinner-border text-primary"></div></div>
+        <div v-if="error" class="alert alert-danger text-center">{{ error }}</div>
+
+        <div v-if="!loading && !error">
+            <div v-for="floor in sortedFloors" :key="floor">
+                <h3 class="floor-section-title">
+                    <i class="bi bi-layers-half me-2"></i> Поверх {{ floor }}
+                </h3>
+                <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
+                    <div class="col" v-for="hall in groupedHalls[floor]" :key="hall.id">
+
+                        <div class="hall-card position-relative h-100 cursor-pointer" @click="goToHall(hall.id)">
+
+                            <button class="btn-delete-card shadow-sm"
+                                    @click.stop="deleteHall(hall)"
+                                    title="Видалити зал">
+                                <i class="bi bi-trash"></i>
+                            </button>
+
+                            <div class="card-header-img">
+                                <i class="bi bi-door-open-fill"></i>
+                            </div>
+
+                            <div class="card-body text-center">
+                                <h5 class="hall-name">{{ hall.name }}</h5>
+
+                                <div class="librarian-info mt-3 pt-3 border-top">
+                                    <small class="text-uppercase text-muted fw-bold" style="font-size: 0.7rem;">Відповідальний</small>
+                                    <div v-if="hall.librarian">
+                                        <i class="bi bi-person-badge me-1"></i> {{ hall.librarian.name }}
+                                    </div>
+                                    <div v-else class="text-muted fst-italic">
+                                        Не призначено
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <div v-if="!loading && !error && halls.length === 0" class="text-center mt-5">
+            <div class="text-muted p-5 bg-white rounded shadow-sm">
+                <i class="bi bi-building-slash display-4 mb-3 d-block"></i>
+                Залів ще немає.
+            </div>
+        </div>
+
+        <div v-if="showModal">
+            <div class="modal-overlay" @click="closeModal"></div>
+            <div class="modal show" tabindex="-1">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Новий зал</h5>
+                            <button type="button" class="btn-close" @click="closeModal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <form @submit.prevent="saveHall">
+                                <div class="mb-3">
+                                    <label class="form-label">Назва залу</label>
+                                    <input v-model="newHall.name" type="text" class="form-control" placeholder="Напр. Зал художньої літератури" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Поверх</label>
+                                    <input v-model="newHall.floor" type="number" class="form-control" min="1" required>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label">Відповідальний бібліотекар</label>
+                                    <select v-model="newHall.librarian.id" class="form-select">
+                                        <option value="" disabled>Оберіть співробітника</option>
+                                        <option v-for="lib in librariansList" :value="lib.id">
+                                            {{ lib.name }} ({{ lib.position }})
+                                        </option>
+                                    </select>
+                                    <div class="form-text" v-if="librariansList.length === 0">
+                                        Список пустий. Спочатку додайте бібліотекарів.
+                                    </div>
+                                </div>
+
+                                <div class="d-grid">
+                                    <button type="submit" class="btn btn-primary" style="background-color: #6610f2; border-color: #6610f2;">Створити зал</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div v-if="showSearchModal">
+        <div class="modal-overlay" @click="closeSearchModal"></div>
+        <div class="modal show" tabindex="-1">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title"><i class="bi bi-search me-2"></i>Пошук по бібліотеці</h5>
+                        <button type="button" class="btn-close" @click="closeSearchModal"></button>
+                    </div>
+                    <div class="modal-body">
+
+                        <form @submit.prevent="performSearch" class="mb-4">
+                            <div class="input-group input-group-lg">
+                                <select v-model="searchType" class="form-select" style="max-width: 150px; background-color: #f8f9fa;">
+                                    <option value="books">Книги</option>
+                                    <option value="authors">Автори</option>
+                                    <option value="readers">Читачі</option>
+                                </select>
+                                <input v-model="searchQuery" type="text" class="form-control" placeholder="Введіть запит..." ref="searchInput" required>
+                                <button class="btn btn-primary" type="submit">Знайти</button>
+                            </div>
+                        </form>
+
+                        <div v-if="isSearching" class="text-center py-4">
+                            <div class="spinner-border text-primary"></div>
+                        </div>
+
+                        <div v-else-if="searchResults.length > 0">
+                            <h6 class="text-muted mb-3">Знайдено {{ searchResults.length }} результатів:</h6>
+                            <div class="list-group">
+                                <a v-for="item in searchResults" :key="item.id"
+                                   :href="getLink(item)"
+                                   class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+
+                                    <div>
+                                        <span v-if="searchType === 'books'">
+                                            <i class="bi bi-book me-2 text-primary"></i> <strong>{{ item.title }}</strong>
+                                            <small class="text-muted ms-2" v-if="item.author">by {{ item.author.name }}</small>
+                                        </span>
+                                        <span v-else-if="searchType === 'authors'">
+                                            <i class="bi bi-person-fill me-2 text-success"></i> <strong>{{ item.name }}</strong>
+                                            <small class="text-muted ms-2">{{ item.nationality }}</small>
+                                        </span>
+                                        <span v-else>
+                                            <i class="bi bi-person-badge me-2 text-warning"></i> <strong>{{ item.name }}</strong>
+                                            <small class="text-muted ms-2">{{ item.phone }}</small>
+                                        </span>
+                                    </div>
+
+                                    <i class="bi bi-chevron-right text-muted small"></i>
+                                </a>
+                            </div>
+                        </div>
+
+                        <div v-else-if="hasSearched" class="text-center py-5 text-muted">
+                            <i class="bi bi-emoji-frown display-4 mb-2 d-block"></i>
+                            Нічого не знайдено. Спробуйте інший запит.
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/lodash@4.17.21/lodash.min.js"></script>
+
+<script>
+    const { createApp } = Vue;
+    const API_URL = 'http://localhost:8080/Library/api';
+
+    createApp({
+        data() {
+            return {
+                halls: [],
+                librariansList: [],
+                loading: true,
+                error: null,
+                showModal: false,
+                newHall: {
+                    name: '',
+                    floor: 1,
+                    librarian: { id: "" }
+                },
+                showSearchModal: false,
+                searchQuery: '',
+                searchType: 'books',
+                searchResults: [],
+                isSearching: false,
+                hasSearched: false
+            }
+        },
+        computed: {
+            groupedHalls() {
+                return _.groupBy(this.halls, 'floor');
+            },
+            sortedFloors() {
+                return Object.keys(this.groupedHalls).map(Number).sort((a, b) => a - b);
+            }
+        },
+        methods: {
+            async loadData() {
+                this.loading = true;
+                try {
+                    const response = await fetch(`${API_URL}/halls`);
+                    if(response.ok) {
+                        this.halls = await response.json();
+                    } else {
+                        throw new Error("Failed to fetch halls");
+                    }
+                } catch (err) {
+                    this.error = "Помилка завантаження даних!";
+                    console.error(err);
+                } finally {
+                    this.loading = false;
+                }
+            },
+
+            async openAddModal() {
+                try {
+                    const res = await fetch(`${API_URL}/librarians`);
+                    if(res.ok) {
+                        this.librariansList = await res.json();
+                    }
+                    this.showModal = true;
+                } catch(e) {
+                    alert("Не вдалося завантажити список бібліотекарів");
+                }
+            },
+
+            closeModal() {
+                this.showModal = false;
+                this.newHall = { name: '', floor: 1, librarian: { id: "" } };
+            },
+
+            async saveHall() {
+                const payload = { ...this.newHall };
+                if (!payload.librarian.id) {
+                    payload.librarian = null;
+                }
+
+                try {
+                    const response = await fetch(`${API_URL}/halls`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (response.ok) {
+                        alert("Зал успішно створено!");
+                        this.closeModal();
+                        this.loadData();
+                    } else {
+                        const err = await response.json();
+                        alert("Помилка: " + (err.message || response.status));
+                    }
+                } catch (err) {
+                    alert("Помилка сервера");
+                }
+            },
+
+            goToHall(id) {
+                window.location.href = `hall.html?id=${id}`;
+            },
+
+            async deleteHall(hall) {
+                if (!confirm(`Видалити зал "${hall.name}"?`)) return;
+
+                try {
+                    const response = await fetch(`${API_URL}/halls/${hall.id}`, { method: 'DELETE' });
+
+                    if (response.ok) {
+                        alert("Зал видалено.");
+                        this.loadData();
+                    } else {
+                        const data = await response.json().catch(() => ({}));
+                        alert("Помилка: " + (data.message || "Не вдалося видалити зал"));
+                    }
+                } catch (err) {
+                    alert("Помилка з'єднання");
+                }
+            },
+
+            openSearchModal() {
+                this.showSearchModal = true;
+                this.searchResults = [];
+                this.searchQuery = '';
+                this.hasSearched = false;
+                setTimeout(() => {
+                    if(this.$refs.searchInput) this.$refs.searchInput.focus();
+                }, 100);
+            },
+
+            closeSearchModal() {
+                this.showSearchModal = false;
+            },
+
+            async performSearch() {
+                if (!this.searchQuery.trim()) return;
+
+                this.isSearching = true;
+                this.hasSearched = true;
+                this.searchResults = [];
+
+                try {
+                    const url = `${API_URL}/${this.searchType}/search?query=${encodeURIComponent(this.searchQuery)}`;
+
+                    const response = await fetch(url);
+                    if (response.ok) {
+                        this.searchResults = await response.json();
+                    }
+                } catch (error) {
+                    console.error("Помилка пошуку:", error);
+                } finally {
+                    this.isSearching = false;
+                }
+            },
+
+            getLink(item) {
+                if (this.searchType === 'books') return `hall.html?id=${item.hall ? item.hall.id : ''}`;
+                if (this.searchType === 'authors') return `author.html?id=${item.id}`;
+                if (this.searchType === 'readers') return `reader.html?id=${item.id}`;
+                return '#';
+            }
+        },
+        mounted() {
+            this.loadData();
+        }
+    }).mount('#app');
+</script>
+
+</body>
+</html>

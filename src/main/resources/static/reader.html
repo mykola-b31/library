@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Профіль читача</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+
+    <style>
+        body { background-color: #f4f7f6; font-family: 'Segoe UI', Tahoma, sans-serif; }
+
+        .profile-card {
+            background: white; border: none; border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05); overflow: hidden;
+        }
+
+        .profile-header-bg {
+            height: 100px;
+            background: linear-gradient(135deg, #0d6efd 0%, #0dcaf0 100%);
+        }
+
+        .avatar-container {
+            width: 100px; height: 100px;
+            background: white; padding: 5px;
+            border-radius: 50%;
+            margin-top: -50px; margin-left: auto; margin-right: auto;
+            position: relative;
+        }
+
+        .avatar-circle {
+            width: 100%; height: 100%;
+            background-color: #e9ecef; color: #495057;
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 2.5rem; font-weight: bold;
+        }
+
+        .status-active { color: #198754; font-weight: 600; }
+        .status-returned { color: #6c757d; }
+
+        .modal-overlay { background: rgba(0,0,0,0.5); position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1040; display: block; }
+        .modal.show { display: block; }
+    </style>
+</head>
+<body>
+
+<div id="app">
+
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark sticky-top mb-4">
+        <div class="container">
+            <a class="navbar-brand" href="index.html"><i class="bi bi-book-half me-2"></i>Library App</a>
+            <div class="collapse navbar-collapse">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item"><a class="nav-link" href="books.html">Книги</a></li>
+                    <li class="nav-item"><a class="nav-link" href="authors.html">Автори</a></li>
+                    <li class="nav-item"><a class="nav-link" href="halls.html">Зали</a></li>
+                    <li class="nav-item"><a class="nav-link active" href="readers.html">Читачі</a></li>
+                </ul>
+                <div class="d-flex align-items-center">
+                    <button class="btn btn-outline-light me-2 rounded-circle" title="Пошук" @click="openSearchModal">
+                        <i class="bi bi-search"></i>
+                    </button>
+                    <button class="btn btn-primary" title="Увійти в систему">
+                        <i class="bi bi-person-circle me-2"></i>Вхід
+                    </button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div v-if="loading" class="text-center py-5"><div class="spinner-border text-primary"></div></div>
+    <div v-if="error" class="alert alert-danger text-center m-4">{{ error }}</div>
+
+    <div v-if="!loading && !error && reader" class="container pb-5">
+
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <a href="readers.html" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left me-2"></i>До списку читачів
+            </a>
+
+            <button class="btn btn-outline-danger" @click="deleteReader">
+                <i class="bi bi-person-x-fill me-2"></i>Видалити читача
+            </button>
+        </div>
+
+        <div class="row g-4">
+
+            <div class="col-lg-4">
+                <div class="profile-card text-center pb-4">
+                    <div class="profile-header-bg"></div>
+                    <div class="avatar-container">
+                        <div class="avatar-circle">
+                            {{ reader.name.charAt(0).toUpperCase() }}
+                        </div>
+                    </div>
+                    <div class="px-4 mt-3">
+                        <h4 class="fw-bold mb-1">{{ reader.name }}</h4>
+                        <p class="text-muted small mb-3">ID: {{ reader.id }}</p>
+
+                        <div class="d-flex justify-content-center gap-2 mb-4">
+                            <a :href="'mailto:' + reader.email" class="btn btn-light btn-sm rounded-pill px-3">
+                                <i class="bi bi-envelope me-1"></i> Email
+                            </a>
+                            <a :href="'tel:' + reader.phone" class="btn btn-light btn-sm rounded-pill px-3">
+                                <i class="bi bi-telephone me-1"></i> Call
+                            </a>
+                        </div>
+
+                        <ul class="list-group list-group-flush text-start small">
+                            <li class="list-group-item d-flex justify-content-between px-0">
+                                <span class="text-muted">Телефон</span>
+                                <span class="fw-medium">{{ reader.phone }}</span>
+                            </li>
+                            <li class="list-group-item d-flex justify-content-between px-0">
+                                <span class="text-muted">Email</span>
+                                <span class="fw-medium text-break">{{ reader.email }}</span>
+                            </li>
+                            <li class="list-group-item d-flex justify-content-between px-0">
+                                <span class="text-muted">Реєстрація</span>
+                                <span>{{ formatDate(reader.registrationDate) }}</span>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-8">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h4 class="mb-0">Історія читання</h4>
+                    <button class="btn btn-primary" @click="openIssueModal">
+                        <i class="bi bi-plus-lg me-2"></i>Видати книгу
+                    </button>
+                </div>
+
+                <div class="card border-0 shadow-sm">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="table-light">
+                            <tr>
+                                <th>Книга</th>
+                                <th>Дата видачі</th>
+                                <th>Повернення</th>
+                                <th class="text-end">Дія</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <tr v-for="loan in readerLoans" :key="loan.id" :class="{'table-light': loan.returnDate}">
+                                <td>
+                                    <div class="fw-bold">{{ loan.book ? loan.book.title : 'Невідома книга' }}</div>
+                                    <small class="text-muted" v-if="loan.book?.author">
+                                        {{ loan.book.author.name }}
+                                    </small>
+                                </td>
+                                <td>{{ formatDateTime(loan.issueDate) }}</td>
+                                <td>
+                                    <div v-if="loan.returnDate" class="status-returned">
+                                        <i class="bi bi-check-all me-1"></i>
+                                        {{ formatDateTime(loan.returnDate) }}
+                                    </div>
+                                    <div v-else class="status-active">
+                                            <span class="badge bg-success bg-opacity-10 text-success border border-success">
+                                                На руках
+                                            </span>
+                                    </div>
+                                </td>
+                                <td class="text-end">
+                                    <button v-if="!loan.returnDate"
+                                            class="btn btn-sm btn-outline-danger"
+                                            @click="returnBook(loan)"
+                                            title="Повернути книгу">
+                                        <i class="bi bi-arrow-return-left me-1"></i> Повернути
+                                    </button>
+                                    <button v-else
+                                            class="btn btn-sm btn-outline-secondary"
+                                            @click="deleteLoan(loan)"
+                                            title="Видалити з історії">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                            <tr v-if="readerLoans.length === 0">
+                                <td colspan="4" class="text-center py-4 text-muted">
+                                    Історія позик порожня.
+                                </td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div v-if="showModal">
+            <div class="modal-overlay" @click="closeModal"></div>
+            <div class="modal show" tabindex="-1">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Видача книги</h5>
+                            <button type="button" class="btn-close" @click="closeModal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <form @submit.prevent="issueBook">
+                                <div class="mb-3">
+                                    <label class="form-label">Оберіть книгу</label>
+                                    <select v-model="selectedBookId" class="form-select" required>
+                                        <option value="" disabled>Список книг</option>
+                                        <option v-for="book in availableBooks" :value="book.id">
+                                            {{ book.title }} (Копій: {{ book.copies }})
+                                        </option>
+                                    </select>
+                                    <div class="form-text">Показані лише книги в наявності.</div>
+                                </div>
+                                <div class="d-grid">
+                                    <button type="submit" class="btn btn-primary">Підтвердити видачу</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div v-if="showSearchModal">
+        <div class="modal-overlay" @click="closeSearchModal"></div>
+        <div class="modal show" tabindex="-1">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title"><i class="bi bi-search me-2"></i>Пошук по бібліотеці</h5>
+                        <button type="button" class="btn-close" @click="closeSearchModal"></button>
+                    </div>
+                    <div class="modal-body">
+
+                        <form @submit.prevent="performSearch" class="mb-4">
+                            <div class="input-group input-group-lg">
+                                <select v-model="searchType" class="form-select" style="max-width: 150px; background-color: #f8f9fa;">
+                                    <option value="books">Книги</option>
+                                    <option value="authors">Автори</option>
+                                    <option value="readers">Читачі</option>
+                                </select>
+                                <input v-model="searchQuery" type="text" class="form-control" placeholder="Введіть запит..." ref="searchInput" required>
+                                <button class="btn btn-primary" type="submit">Знайти</button>
+                            </div>
+                        </form>
+
+                        <div v-if="isSearching" class="text-center py-4">
+                            <div class="spinner-border text-primary"></div>
+                        </div>
+
+                        <div v-else-if="searchResults.length > 0">
+                            <h6 class="text-muted mb-3">Знайдено {{ searchResults.length }} результатів:</h6>
+                            <div class="list-group">
+                                <a v-for="item in searchResults" :key="item.id"
+                                   :href="getLink(item)"
+                                   class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+
+                                    <div>
+                                        <span v-if="searchType === 'books'">
+                                            <i class="bi bi-book me-2 text-primary"></i> <strong>{{ item.title }}</strong>
+                                            <small class="text-muted ms-2" v-if="item.author">by {{ item.author.name }}</small>
+                                        </span>
+                                        <span v-else-if="searchType === 'authors'">
+                                            <i class="bi bi-person-fill me-2 text-success"></i> <strong>{{ item.name }}</strong>
+                                            <small class="text-muted ms-2">{{ item.nationality }}</small>
+                                        </span>
+                                        <span v-else>
+                                            <i class="bi bi-person-badge me-2 text-warning"></i> <strong>{{ item.name }}</strong>
+                                            <small class="text-muted ms-2">{{ item.phone }}</small>
+                                        </span>
+                                    </div>
+
+                                    <i class="bi bi-chevron-right text-muted small"></i>
+                                </a>
+                            </div>
+                        </div>
+
+                        <div v-else-if="hasSearched" class="text-center py-5 text-muted">
+                            <i class="bi bi-emoji-frown display-4 mb-2 d-block"></i>
+                            Нічого не знайдено. Спробуйте інший запит.
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/lodash@4.17.21/lodash.min.js"></script>
+
+<script>
+    const { createApp } = Vue;
+    const API_URL = 'http://localhost:8080/Library/api';
+
+    createApp({
+        data() {
+            return {
+                reader: null,
+                allLoans: [],
+                allBooks: [],
+                loading: true,
+                error: null,
+                showModal: false,
+                selectedBookId: "",
+                showSearchModal: false,
+                searchQuery: '',
+                searchType: 'books',
+                searchResults: [],
+                isSearching: false,
+                hasSearched: false
+            }
+        },
+        computed: {
+            readerLoans() {
+                if (!this.reader || !this.allLoans.length) return [];
+                return this.allLoans
+                    .filter(loan => loan.reader && loan.reader.id === this.reader.id)
+                    .sort((a, b) => new Date(b.issueDate) - new Date(a.issueDate));
+            },
+            availableBooks() {
+                return this.allBooks.filter(b => b.copies > 0);
+            }
+        },
+        methods: {
+            async loadData() {
+                const params = new URLSearchParams(window.location.search);
+                const id = params.get('id');
+
+                if (!id) {
+                    this.error = "ID читача не вказано";
+                    this.loading = false;
+                    return;
+                }
+
+                try {
+                    const [readerRes, loansRes, booksRes] = await Promise.all([
+                        fetch(`${API_URL}/readers/${id}`),
+                        fetch(`${API_URL}/loans`),
+                        fetch(`${API_URL}/books`)
+                    ]);
+
+                    if (!readerRes.ok) throw new Error("Читач не знайдений");
+                    this.reader = await readerRes.json();
+
+                    if (loansRes.ok) this.allLoans = await loansRes.json();
+                    if (booksRes.ok) this.allBooks = await booksRes.json();
+
+                } catch (err) {
+                    this.error = "Помилка: " + err.message;
+                } finally {
+                    this.loading = false;
+                }
+            },
+
+            async issueBook() {
+                if (!this.selectedBookId) return;
+
+                const newLoan = {
+                    book: { id: this.selectedBookId },
+                    reader: { id: this.reader.id }
+                };
+
+                try {
+                    const response = await fetch(`${API_URL}/loans`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(newLoan)
+                    });
+
+                    if (response.ok) {
+                        alert("Книгу видано!");
+                        this.closeModal();
+                        this.loadData();
+                    } else {
+                        try {
+                            const errorData = await response.json();
+                            alert("Помилка: " + (errorData.message || "Не вдалося видати книгу"));
+                        } catch (e) {
+                            alert("Помилка видачі (код " + response.status + ")");
+                        }
+                    }
+                } catch (err) {
+                    console.error(err);
+                    alert("Помилка з'єднання");
+                }
+            },
+
+            async returnBook(loan) {
+                if (!confirm(`Повернути книгу "${loan.book.title}"?`)) return;
+
+                const now = new Date();
+                const localIsoString = new Date(now.getTime() - (now.getTimezoneOffset() * 60000))
+                    .toISOString().slice(0, -1);
+
+                const updatedLoan = {
+                    ...loan,
+                    returnDate: localIsoString
+                };
+
+                try {
+                    const response = await fetch(`${API_URL}/loans/${loan.id}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(updatedLoan)
+                    });
+
+                    if (response.ok) {
+                        this.loadData();
+                    } else {
+                        alert("Не вдалося повернути книгу");
+                    }
+                } catch (err) {
+                    alert("Помилка сервера");
+                }
+            },
+
+            openIssueModal() {
+                this.selectedBookId = "";
+                this.showModal = true;
+            },
+            closeModal() {
+                this.showModal = false;
+            },
+            formatDate(dateStr) {
+                if(!dateStr) return '';
+                return new Date(dateStr).toLocaleDateString('uk-UA');
+            },
+            formatDateTime(dateStr) {
+                if(!dateStr) return '';
+                return new Date(dateStr).toLocaleString('uk-UA', {
+                    day: 'numeric', month: 'numeric', year: 'numeric',
+                    hour: '2-digit', minute: '2-digit'
+                });
+            },
+
+            async deleteReader() {
+                if (!this.reader) return;
+
+                const activeLoans = this.readerLoans.filter(l => !l.returnDate);
+                if (activeLoans.length > 0) {
+                    alert(`Неможливо видалити: у читача на руках ${activeLoans.length} книг.`);
+                    return;
+                }
+
+                if (!confirm(`Видалити профіль читача "${this.reader.name}"?`)) return;
+
+                try {
+                    const response = await fetch(`${API_URL}/readers/${this.reader.id}`, { method: 'DELETE' });
+
+                    if (response.ok) {
+                        alert("Читача успішно видалено.");
+                        window.location.href = 'readers.html';
+                    } else {
+                        const data = await response.json().catch(() => ({}));
+                        alert("Помилка: " + (data.message || response.statusText));
+                    }
+                } catch (err) {
+                    alert("Помилка з'єднання");
+                }
+            },
+
+            async deleteLoan(loan) {
+                if (!confirm("Видалити цей запис з історії читача?")) return;
+
+                try {
+                    const response = await fetch(`${API_URL}/loans/${loan.id}`, { method: 'DELETE' });
+
+                    if (response.ok) {
+                        this.loadData();
+                    } else {
+                        const err = await response.json().catch(() => ({}));
+                        alert("Помилка: " + (err.message || "Не вдалося видалити"));
+                    }
+                } catch (e) {
+                    alert("Помилка сервера");
+                }
+            },
+
+            openSearchModal() {
+                this.showSearchModal = true;
+                this.searchResults = [];
+                this.searchQuery = '';
+                this.hasSearched = false;
+                setTimeout(() => {
+                    if(this.$refs.searchInput) this.$refs.searchInput.focus();
+                }, 100);
+            },
+
+            closeSearchModal() {
+                this.showSearchModal = false;
+            },
+
+            async performSearch() {
+                if (!this.searchQuery.trim()) return;
+
+                this.isSearching = true;
+                this.hasSearched = true;
+                this.searchResults = [];
+
+                try {
+                    const url = `${API_URL}/${this.searchType}/search?query=${encodeURIComponent(this.searchQuery)}`;
+
+                    const response = await fetch(url);
+                    if (response.ok) {
+                        this.searchResults = await response.json();
+                    }
+                } catch (error) {
+                    console.error("Помилка пошуку:", error);
+                } finally {
+                    this.isSearching = false;
+                }
+            },
+
+            getLink(item) {
+                if (this.searchType === 'books') return `hall.html?id=${item.hall ? item.hall.id : ''}`;
+                if (this.searchType === 'authors') return `author.html?id=${item.id}`;
+                if (this.searchType === 'readers') return `reader.html?id=${item.id}`;
+                return '#';
+            }
+        },
+        mounted() {
+            this.loadData();
+        }
+    }).mount('#app');
+</script>
+
+</body>
+</html>

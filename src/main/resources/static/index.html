@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Бібліотека - Головна</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+
+    <style>
+        body { background-color: #f4f7f6; font-family: 'Segoe UI', Tahoma, sans-serif; }
+
+        .hero-section {
+            background: linear-gradient(135deg, #2c3e50 0%, #4ca1af 100%);
+            color: white;
+            padding: 3rem 2rem;
+            border-radius: 0 0 20px 20px;
+            margin-bottom: 2rem;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+        }
+
+        .stat-card {
+            background: white; border: none; border-radius: 15px;
+            padding: 1.5rem; height: 100%;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.05);
+            transition: transform 0.3s;
+            display: flex; align-items: center; justify-content: space-between;
+        }
+        .stat-card:hover { transform: translateY(-5px); }
+
+        .stat-icon {
+            width: 60px; height: 60px;
+            border-radius: 12px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 2rem;
+        }
+
+        .stat-info h3 { margin: 0; font-weight: 800; font-size: 2rem; color: #2c3e50; }
+        .stat-info p { margin: 0; color: #6c757d; font-weight: 500; text-transform: uppercase; font-size: 0.8rem; letter-spacing: 1px; }
+
+        .bg-icon-blue { background-color: #e7f1ff; color: #0d6efd; }
+        .bg-icon-green { background-color: #d1e7dd; color: #198754; }
+        .bg-icon-purple { background-color: #e2d9f3; color: #6f42c1; }
+        .bg-icon-orange { background-color: #ffecb5; color: #ffc107; }
+
+        .recent-table { background: white; border-radius: 15px; overflow: hidden; box-shadow: 0 5px 15px rgba(0,0,0,0.05); }
+        .recent-header { background: #fff; padding: 1.5rem; border-bottom: 1px solid #f0f0f0; }
+
+        .action-btn {
+            display: flex; align-items: center; padding: 1rem;
+            background: white; border-radius: 12px; margin-bottom: 10px;
+            text-decoration: none; color: #495057; font-weight: 600;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05); transition: 0.2s;
+        }
+        .action-btn:hover { background: #f8f9fa; color: #0d6efd; transform: translateX(5px); }
+        .action-btn i { font-size: 1.2rem; margin-right: 15px; color: #0d6efd; }
+
+        .modal-overlay {
+            background: rgba(0,0,0,0.5);
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1040;
+            display: block;
+        }
+        .modal.show {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+
+<div id="app">
+
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark sticky-top shadow-sm">
+        <div class="container">
+            <a class="navbar-brand fw-bold" href="#">
+                <i class="bi bi-book-half me-2"></i>Library App
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item"><a class="nav-link" href="books.html">Книги</a></li>
+                    <li class="nav-item"><a class="nav-link" href="authors.html">Автори</a></li>
+                    <li class="nav-item"><a class="nav-link" href="halls.html">Зали</a></li>
+                    <li class="nav-item"><a class="nav-link" href="readers.html">Читачі</a></li>
+                    <li class="nav-item"><a class="nav-link" href="librarians.html">Бібліотекарі</a></li>
+                    <li class="nav-item"><a class="nav-link" href="loans.html">Позики</a></li>
+                </ul>
+                <div class="d-flex align-items-center">
+                    <button class="btn btn-outline-light me-2 rounded-circle" title="Пошук" @click="openSearchModal">
+                        <i class="bi bi-search"></i>
+                    </button>
+                    <button class="btn btn-primary" title="Увійти в систему">
+                        <i class="bi bi-person-circle me-2"></i>Вхід
+                    </button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="hero-section text-center">
+        <div class="container">
+            <h1 class="display-4 fw-bold">Ласкаво просимо!</h1>
+            <p class="lead mb-0 opacity-75">Система управління бібліотечним фондом</p>
+        </div>
+    </div>
+
+    <div class="container pb-5">
+
+        <div v-if="loading" class="text-center py-5">
+            <div class="spinner-border text-primary"></div>
+        </div>
+
+        <div v-if="!loading" class="row g-4 mb-5">
+            <div class="col-md-6 col-lg-3">
+                <div class="stat-card">
+                    <div class="stat-info">
+                        <h3>{{ stats.books }}</h3>
+                        <p>Всього книг</p>
+                    </div>
+                    <div class="stat-icon bg-icon-blue"><i class="bi bi-book"></i></div>
+                </div>
+            </div>
+            <div class="col-md-6 col-lg-3">
+                <div class="stat-card">
+                    <div class="stat-info">
+                        <h3>{{ stats.readers }}</h3>
+                        <p>Читачів</p>
+                    </div>
+                    <div class="stat-icon bg-icon-green"><i class="bi bi-people"></i></div>
+                </div>
+            </div>
+            <div class="col-md-6 col-lg-3">
+                <div class="stat-card">
+                    <div class="stat-info">
+                        <h3>{{ stats.activeLoans }}</h3>
+                        <p>Книг на руках</p>
+                    </div>
+                    <div class="stat-icon bg-icon-orange"><i class="bi bi-journal-arrow-up"></i></div>
+                </div>
+            </div>
+            <div class="col-md-6 col-lg-3">
+                <div class="stat-card">
+                    <div class="stat-info">
+                        <h3>{{ stats.librarians }}</h3>
+                        <p>Персонал</p>
+                    </div>
+                    <div class="stat-icon bg-icon-purple"><i class="bi bi-person-badge"></i></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row g-4">
+
+            <div class="col-lg-8">
+                <div class="recent-table">
+                    <div class="recent-header d-flex justify-content-between align-items-center">
+                        <h5 class="fw-bold mb-0 text-dark">Останні операції видачі</h5>
+                        <a href="loans.html" class="btn btn-sm btn-outline-primary">Весь журнал</a>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="table-light">
+                            <tr>
+                                <th>Книга</th>
+                                <th>Читач</th>
+                                <th>Коли видано</th>
+                                <th>Статус</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <tr v-for="loan in recentLoans" :key="loan.id">
+                                <td class="fw-medium text-dark">
+                                    {{ loan.book ? loan.book.title : 'Видалена книга' }}
+                                </td>
+                                <td>
+                                    {{ loan.reader ? loan.reader.name : 'Видалений' }}
+                                </td>
+                                <td class="text-muted small">
+                                    {{ formatTimeAgo(loan.issueDate) }}
+                                </td>
+                                <td>
+                                    <span v-if="!loan.returnDate" class="badge bg-warning text-dark bg-opacity-25">На руках</span>
+                                    <span v-else class="badge bg-success bg-opacity-25 text-success">Повернуто</span>
+                                </td>
+                            </tr>
+                            <tr v-if="recentLoans.length === 0">
+                                <td colspan="4" class="text-center text-muted py-4">Операцій ще не було</td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-4">
+                <h5 class="fw-bold mb-3 text-secondary ps-2">Швидкий перехід</h5>
+
+                <a href="books.html" class="action-btn">
+                    <i class="bi bi-plus-circle"></i> Додати нову книгу
+                </a>
+                <a href="readers.html" class="action-btn">
+                    <i class="bi bi-person-plus"></i> Реєстрація читача
+                </a>
+                <a href="loans.html" class="action-btn">
+                    <i class="bi bi-search"></i> Знайти позику
+                </a>
+                <div class="mt-4 p-4 bg-white rounded-4 shadow-sm text-center">
+                    <p class="text-muted small mb-2">Технічна підтримка</p>
+                    <a href="mailto:admin@library.ua" class="btn btn-outline-secondary btn-sm w-100">
+                        <i class="bi bi-envelope me-2"></i>Написати адміну
+                    </a>
+                </div>
+            </div>
+
+        </div>
+
+    </div>
+    <div v-if="showSearchModal">
+        <div class="modal-overlay" @click="closeSearchModal"></div>
+        <div class="modal show" tabindex="-1">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title"><i class="bi bi-search me-2"></i>Пошук по бібліотеці</h5>
+                        <button type="button" class="btn-close" @click="closeSearchModal"></button>
+                    </div>
+                    <div class="modal-body">
+
+                        <form @submit.prevent="performSearch" class="mb-4">
+                            <div class="input-group input-group-lg">
+                                <select v-model="searchType" class="form-select" style="max-width: 150px; background-color: #f8f9fa;">
+                                    <option value="books">Книги</option>
+                                    <option value="authors">Автори</option>
+                                    <option value="readers">Читачі</option>
+                                </select>
+                                <input v-model="searchQuery" type="text" class="form-control" placeholder="Введіть запит..." ref="searchInput" required>
+                                <button class="btn btn-primary" type="submit">Знайти</button>
+                            </div>
+                        </form>
+
+                        <div v-if="isSearching" class="text-center py-4">
+                            <div class="spinner-border text-primary"></div>
+                        </div>
+
+                        <div v-else-if="searchResults.length > 0">
+                            <h6 class="text-muted mb-3">Знайдено {{ searchResults.length }} результатів:</h6>
+                            <div class="list-group">
+                                <a v-for="item in searchResults" :key="item.id"
+                                   :href="getLink(item)"
+                                   class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+
+                                    <div>
+                                        <span v-if="searchType === 'books'">
+                                            <i class="bi bi-book me-2 text-primary"></i> <strong>{{ item.title }}</strong>
+                                            <small class="text-muted ms-2" v-if="item.author">by {{ item.author.name }}</small>
+                                        </span>
+                                        <span v-else-if="searchType === 'authors'">
+                                            <i class="bi bi-person-fill me-2 text-success"></i> <strong>{{ item.name }}</strong>
+                                            <small class="text-muted ms-2">{{ item.nationality }}</small>
+                                        </span>
+                                        <span v-else>
+                                            <i class="bi bi-person-badge me-2 text-warning"></i> <strong>{{ item.name }}</strong>
+                                            <small class="text-muted ms-2">{{ item.phone }}</small>
+                                        </span>
+                                    </div>
+
+                                    <i class="bi bi-chevron-right text-muted small"></i>
+                                </a>
+                            </div>
+                        </div>
+
+                        <div v-else-if="hasSearched" class="text-center py-5 text-muted">
+                            <i class="bi bi-emoji-frown display-4 mb-2 d-block"></i>
+                            Нічого не знайдено. Спробуйте інший запит.
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+
+<script>
+    const { createApp } = Vue;
+    const API_URL = 'http://localhost:8080/Library/api';
+
+    createApp({
+        data() {
+            return {
+                loading: true,
+                stats: {
+                    books: 0,
+                    readers: 0,
+                    activeLoans: 0,
+                    librarians: 0
+                },
+                recentLoans: [],
+                showSearchModal: false,
+                searchQuery: '',
+                searchType: 'books',
+                searchResults: [],
+                isSearching: false,
+                hasSearched: false
+            }
+        },
+        methods: {
+            async loadDashboardData() {
+                this.loading = true;
+                try {
+                    const [booksRes, readersRes, loansRes, libsRes] = await Promise.all([
+                        fetch(`${API_URL}/books`),
+                        fetch(`${API_URL}/readers`),
+                        fetch(`${API_URL}/loans`),
+                        fetch(`${API_URL}/librarians`)
+                    ]);
+
+                    if(booksRes.ok) {
+                        const books = await booksRes.json();
+                        this.stats.books = books.length;
+                    }
+                    if(readersRes.ok) {
+                        const readers = await readersRes.json();
+                        this.stats.readers = readers.length;
+                    }
+                    if(libsRes.ok) {
+                        const libs = await libsRes.json();
+                        this.stats.librarians = libs.length;
+                    }
+                    if(loansRes.ok) {
+                        const loans = await loansRes.json();
+                        this.stats.activeLoans = loans.filter(l => l.returnDate === null).length;
+
+                        this.recentLoans = loans
+                            .sort((a, b) => new Date(b.issueDate) - new Date(a.issueDate))
+                            .slice(0, 5);
+                    }
+
+                } catch (err) {
+                    console.error("Помилка завантаження дашборду:", err);
+                } finally {
+                    this.loading = false;
+                }
+            },
+
+            formatTimeAgo(dateStr) {
+                if (!dateStr) return '';
+                const date = new Date(dateStr);
+                const now = new Date();
+                const seconds = Math.floor((now - date) / 1000);
+
+                if (seconds < 60) return 'Щойно';
+                const minutes = Math.floor(seconds / 60);
+                if (minutes < 60) return minutes + ' хв. тому';
+                const hours = Math.floor(minutes / 60);
+                if (hours < 24) return hours + ' год. тому';
+
+                return date.toLocaleDateString('uk-UA', { day: 'numeric', month: 'short' });
+            },
+
+            openSearchModal() {
+                this.showSearchModal = true;
+                this.searchResults = [];
+                this.searchQuery = '';
+                this.hasSearched = false;
+                setTimeout(() => {
+                    if(this.$refs.searchInput) this.$refs.searchInput.focus();
+                }, 100);
+            },
+
+            closeSearchModal() {
+                this.showSearchModal = false;
+            },
+
+            async performSearch() {
+                if (!this.searchQuery.trim()) return;
+
+                this.isSearching = true;
+                this.hasSearched = true;
+                this.searchResults = [];
+
+                try {
+                    const url = `${API_URL}/${this.searchType}/search?query=${encodeURIComponent(this.searchQuery)}`;
+
+                    const response = await fetch(url);
+                    if (response.ok) {
+                        this.searchResults = await response.json();
+                    }
+                } catch (error) {
+                    console.error("Помилка пошуку:", error);
+                } finally {
+                    this.isSearching = false;
+                }
+            },
+
+            getLink(item) {
+                if (this.searchType === 'books') return `hall.html?id=${item.hall ? item.hall.id : ''}`;
+                if (this.searchType === 'authors') return `author.html?id=${item.id}`;
+                if (this.searchType === 'readers') return `reader.html?id=${item.id}`;
+                return '#';
+            }
+        },
+        mounted() {
+            this.loadDashboardData();
+        }
+    }).mount('#app');
+</script>
+
+</body>
+</html>

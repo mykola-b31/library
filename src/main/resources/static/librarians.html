@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Бібліотека - Співробітники</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+
+    <style>
+        body { background-color: #f4f7f6; font-family: 'Segoe UI', Tahoma, sans-serif; }
+
+        .position-section-title {
+            border-left: 5px solid #dc3545; /* Червоний колір для персоналу */
+            padding-left: 15px; margin-top: 40px; margin-bottom: 20px;
+            color: #2c3e50; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
+        }
+
+        .staff-card {
+            border: none; border-radius: 12px;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            background: white; height: 100%; overflow: hidden;
+            border-top: 4px solid transparent;
+        }
+
+        .staff-card:hover { transform: translateY(-5px); box-shadow: 0 10px 20px rgba(0,0,0,0.1); }
+
+        .card-header-staff {
+            padding: 2rem 1rem;
+            text-align: center;
+            background-color: #f8f9fa;
+            border-bottom: 1px solid #eee;
+        }
+
+        .staff-avatar {
+            width: 80px; height: 80px;
+            background: #fff;
+            border: 3px solid #dee2e6;
+            border-radius: 50%;
+            display: inline-flex; align-items: center; justify-content: center;
+            font-size: 2rem; color: #6c757d;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        }
+
+        .staff-name { font-weight: 700; font-size: 1.1rem; color: #333; margin-top: 1rem; margin-bottom: 0.2rem; }
+        .staff-position { font-size: 0.85rem; text-transform: uppercase; font-weight: 600; color: #dc3545; }
+
+        .modal-overlay { background: rgba(0,0,0,0.5); position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1040; display: block; }
+        .modal.show { display: block; }
+
+        .btn-delete-card {
+            position: absolute;
+            top: 10px; right: 10px; z-index: 10;
+            background: rgba(255, 255, 255, 0.8);
+            border: none; color: #dc3545;
+            border-radius: 50%;
+            width: 32px; height: 32px;
+            display: flex; align-items: center; justify-content: center;
+            transition: all 0.2s;
+            opacity: 0;
+        }
+        .staff-card:hover .btn-delete-card { opacity: 1; }
+        .btn-delete-card:hover { background: #dc3545; color: white; transform: scale(1.1); }
+    </style>
+</head>
+<body>
+
+<div id="app">
+
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark sticky-top mb-4 shadow-sm">
+        <div class="container">
+            <a class="navbar-brand" href="index.html">
+                <i class="bi bi-book-half me-2"></i>Library App
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                    <li class="nav-item"><a class="nav-link" href="books.html">Книги</a></li>
+                    <li class="nav-item"><a class="nav-link" href="authors.html">Автори</a></li>
+                    <li class="nav-item"><a class="nav-link" href="halls.html">Зали</a></li>
+                    <li class="nav-item"><a class="nav-link" href="readers.html">Читачі</a></li>
+                    <li class="nav-item"><a class="nav-link active" href="librarians.html">Бібліотекарі</a></li> <li class="nav-item"><a class="nav-link" href="loans.html">Позики</a></li>
+                </ul>
+                <div class="d-flex align-items-center">
+                    <button class="btn btn-outline-light me-2 rounded-circle" title="Пошук" @click="openSearchModal">
+                        <i class="bi bi-search"></i>
+                    </button>
+                    <button class="btn btn-primary" title="Увійти в систему">
+                        <i class="bi bi-person-circle me-2"></i>Вхід
+                    </button>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container pb-5">
+
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h2 class="fw-bold text-dark">Персонал бібліотеки</h2>
+                <p class="text-secondary mb-0">Список відповідальних осіб</p>
+            </div>
+            <button class="btn btn-danger shadow-sm" @click="openAddModal">
+                <i class="bi bi-person-plus-fill me-2"></i>Найняти співробітника
+            </button>
+        </div>
+
+        <div v-if="loading" class="text-center py-5"><div class="spinner-border text-danger"></div></div>
+        <div v-if="error" class="alert alert-danger text-center">{{ error }}</div>
+
+        <div v-if="!loading && !error">
+            <div v-for="(staffGroup, positionName) in groupedLibrarians" :key="positionName">
+
+                <h3 class="position-section-title">
+                    <i class="bi bi-person-badge-fill me-2"></i> {{ formatPosition(positionName) }}
+                </h3>
+
+                <div class="row row-cols-1 row-cols-md-2 row-cols-lg-4 g-4">
+                    <div class="col" v-for="lib in staffGroup" :key="lib.id">
+                        <div class="staff-card h-100 position-relative">
+
+                            <button class="btn-delete-card shadow-sm"
+                                    @click="deleteLibrarian(lib)"
+                                    title="Звільнити співробітника">
+                                <i class="bi bi-trash"></i>
+                            </button>
+
+                            <div class="card-header-staff">
+                                <div class="staff-avatar">
+                                    <i class="bi bi-person-workspace"></i>
+                                </div>
+                                <h5 class="staff-name">{{ lib.name }}</h5>
+                                <div class="staff-position">{{ formatPosition(lib.position) }}</div>
+                            </div>
+
+                            <div class="card-body">
+                                <ul class="list-group list-group-flush small">
+                                    <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                                        <span class="text-muted"><i class="bi bi-calendar-check me-2"></i>Найнятий:</span>
+                                        <span class="fw-medium">{{ formatDate(lib.hireDate) }}</span>
+                                    </li>
+                                    <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                                        <span class="text-muted"><i class="bi bi-cash-stack me-2"></i>Ставка:</span>
+                                        <span class="badge bg-success bg-opacity-10 text-success">
+                                            {{ formatCurrency(lib.salary) }}
+                                        </span>
+                                    </li>
+                                </ul>
+                            </div>
+
+                            <div class="card-footer bg-white border-top-0 text-center pb-3">
+                                <small class="text-muted">ID співробітника: #{{ lib.id }}</small>
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <div v-if="!loading && !error && librarians.length === 0" class="text-center mt-5">
+            <div class="text-muted p-5 bg-white rounded shadow-sm">
+                <i class="bi bi-people-fill display-4 mb-3 d-block"></i>
+                Співробітників ще немає.
+            </div>
+        </div>
+
+        <div v-if="showModal">
+            <div class="modal-overlay" @click="closeModal"></div>
+            <div class="modal show" tabindex="-1">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Новий співробітник</h5>
+                            <button type="button" class="btn-close" @click="closeModal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <form @submit.prevent="saveLibrarian">
+                                <div class="mb-3">
+                                    <label class="form-label">ПІБ</label>
+                                    <input v-model="newLibrarian.name" type="text" class="form-control" placeholder="Петренко Петро Петрович" required>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label">Посада</label>
+                                    <select v-model="newLibrarian.position" class="form-select" required>
+                                        <option disabled value="">Оберіть посаду</option>
+                                        <option value="ЗАВІДУВАЧ">Завідувач</option>
+                                        <option value="ГОЛОВНИЙ_БІБЛІОТЕКАР">Головний бібліотекар</option>
+                                        <option value="СТАРШИЙ_БІБЛІОТЕКАР">Старший бібліотекар</option>
+                                        <option value="МОЛОДШИЙ_БІБЛІОТЕКАР">Молодший бібліотекар</option>
+                                        <option value="ПОМІЧНИК_БІБЛІОТЕКАРЯ">Помічник бібліотекаря</option>
+                                    </select>
+                                </div>
+
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label">Дата найму</label>
+                                        <input v-model="newLibrarian.hireDate" type="date" class="form-control" required>
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label">Зарплата (грн)</label>
+                                        <input v-model="newLibrarian.salary" type="number" step="0.01" class="form-control" required>
+                                    </div>
+                                </div>
+
+                                <div class="d-grid">
+                                    <button type="submit" class="btn btn-danger">Зберегти</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div v-if="showSearchModal">
+        <div class="modal-overlay" @click="closeSearchModal"></div>
+        <div class="modal show" tabindex="-1">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title"><i class="bi bi-search me-2"></i>Пошук по бібліотеці</h5>
+                        <button type="button" class="btn-close" @click="closeSearchModal"></button>
+                    </div>
+                    <div class="modal-body">
+
+                        <form @submit.prevent="performSearch" class="mb-4">
+                            <div class="input-group input-group-lg">
+                                <select v-model="searchType" class="form-select" style="max-width: 150px; background-color: #f8f9fa;">
+                                    <option value="books">Книги</option>
+                                    <option value="authors">Автори</option>
+                                    <option value="readers">Читачі</option>
+                                </select>
+                                <input v-model="searchQuery" type="text" class="form-control" placeholder="Введіть запит..." ref="searchInput" required>
+                                <button class="btn btn-primary" type="submit">Знайти</button>
+                            </div>
+                        </form>
+
+                        <div v-if="isSearching" class="text-center py-4">
+                            <div class="spinner-border text-primary"></div>
+                        </div>
+
+                        <div v-else-if="searchResults.length > 0">
+                            <h6 class="text-muted mb-3">Знайдено {{ searchResults.length }} результатів:</h6>
+                            <div class="list-group">
+                                <a v-for="item in searchResults" :key="item.id"
+                                   :href="getLink(item)"
+                                   class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+
+                                    <div>
+                                        <span v-if="searchType === 'books'">
+                                            <i class="bi bi-book me-2 text-primary"></i> <strong>{{ item.title }}</strong>
+                                            <small class="text-muted ms-2" v-if="item.author">by {{ item.author.name }}</small>
+                                        </span>
+                                        <span v-else-if="searchType === 'authors'">
+                                            <i class="bi bi-person-fill me-2 text-success"></i> <strong>{{ item.name }}</strong>
+                                            <small class="text-muted ms-2">{{ item.nationality }}</small>
+                                        </span>
+                                        <span v-else>
+                                            <i class="bi bi-person-badge me-2 text-warning"></i> <strong>{{ item.name }}</strong>
+                                            <small class="text-muted ms-2">{{ item.phone }}</small>
+                                        </span>
+                                    </div>
+
+                                    <i class="bi bi-chevron-right text-muted small"></i>
+                                </a>
+                            </div>
+                        </div>
+
+                        <div v-else-if="hasSearched" class="text-center py-5 text-muted">
+                            <i class="bi bi-emoji-frown display-4 mb-2 d-block"></i>
+                            Нічого не знайдено. Спробуйте інший запит.
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/lodash@4.17.21/lodash.min.js"></script>
+
+<script>
+    const { createApp } = Vue;
+    const API_URL = 'http://localhost:8080/Library/api';
+
+    createApp({
+        data() {
+            return {
+                librarians: [],
+                loading: true,
+                error: null,
+                showModal: false,
+                newLibrarian: {
+                    name: '',
+                    position: '',
+                    hireDate: new Date().toISOString().split('T')[0],
+                    salary: 6700.00
+                },
+                showSearchModal: false,
+                searchQuery: '',
+                searchType: 'books',
+                searchResults: [],
+                isSearching: false,
+                hasSearched: false
+            }
+        },
+        computed: {
+            groupedLibrarians() {
+                return _.groupBy(this.librarians, (lib) => lib.position || 'Інше');
+            }
+        },
+        methods: {
+            async loadData() {
+                this.loading = true;
+                try {
+                    const response = await fetch(`${API_URL}/librarians`);
+                    if(response.ok) {
+                        this.librarians = await response.json();
+                    } else {
+                        throw new Error("Failed to fetch librarians");
+                    }
+                } catch (err) {
+                    this.error = "Помилка завантаження даних!";
+                    console.error(err);
+                } finally {
+                    this.loading = false;
+                }
+            },
+
+            openAddModal() {
+                this.showModal = true;
+            },
+
+            closeModal() {
+                this.showModal = false;
+                this.newLibrarian = {
+                    name: '', position: '',
+                    hireDate: new Date().toISOString().split('T')[0],
+                    salary: 6700.00
+                };
+            },
+
+            async saveLibrarian() {
+                try {
+                    const response = await fetch(`${API_URL}/librarians`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(this.newLibrarian)
+                    });
+
+                    if (response.ok) {
+                        alert("Співробітника успішно додано!");
+                        this.closeModal();
+                        this.loadData();
+                    } else {
+                        const err = await response.json();
+                        alert("Помилка: " + (err.message || response.status));
+                    }
+                } catch (err) {
+                    alert("Помилка сервера");
+                }
+            },
+
+            formatDate(dateStr) {
+                if(!dateStr) return '';
+                return new Date(dateStr).toLocaleDateString('uk-UA');
+            },
+            formatCurrency(value) {
+                if(!value) return '0.00 ₴';
+                return new Intl.NumberFormat('uk-UA', { style: 'currency', currency: 'UAH' }).format(value);
+            },
+            formatPosition(pos) {
+                return pos ? pos.replace(/_/g, ' ') : 'Не вказано';
+            },
+
+            async deleteLibrarian(lib) {
+                if (!confirm(`Ви дійсно хочете звільнити співробітника "${lib.name}"?`)) return;
+
+                try {
+                    const response = await fetch(`${API_URL}/librarians/${lib.id}`, { method: 'DELETE' });
+
+                    if (response.ok) {
+                        alert("Співробітника звільнено (запис видалено).");
+                        this.loadData();
+                    } else {
+                        const data = await response.json().catch(() => ({}));
+                        alert("Помилка: " + (data.message || "Не вдалося видалити запис"));
+                    }
+                } catch (err) {
+                    alert("Помилка з'єднання");
+                }
+            },
+
+            openSearchModal() {
+                this.showSearchModal = true;
+                this.searchResults = [];
+                this.searchQuery = '';
+                this.hasSearched = false;
+                setTimeout(() => {
+                    if(this.$refs.searchInput) this.$refs.searchInput.focus();
+                }, 100);
+            },
+
+            closeSearchModal() {
+                this.showSearchModal = false;
+            },
+
+            async performSearch() {
+                if (!this.searchQuery.trim()) return;
+
+                this.isSearching = true;
+                this.hasSearched = true;
+                this.searchResults = [];
+
+                try {
+                    const url = `${API_URL}/${this.searchType}/search?query=${encodeURIComponent(this.searchQuery)}`;
+
+                    const response = await fetch(url);
+                    if (response.ok) {
+                        this.searchResults = await response.json();
+                    }
+                } catch (error) {
+                    console.error("Помилка пошуку:", error);
+                } finally {
+                    this.isSearching = false;
+                }
+            },
+
+            getLink(item) {
+                if (this.searchType === 'books') return `hall.html?id=${item.hall ? item.hall.id : ''}`;
+                if (this.searchType === 'authors') return `author.html?id=${item.id}`;
+                if (this.searchType === 'readers') return `reader.html?id=${item.id}`;
+                return '#';
+            }
+        },
+        mounted() {
+            this.loadData();
+        }
+    }).mount('#app');
+</script>
+
+</body>
+</html>
