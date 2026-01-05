@@ -124,9 +124,6 @@
                                         <i class="bi bi-book me-1 text-muted"></i>
                                         {{ loan.book.title }}
                                     </a>
-                                    <div class="small text-muted ps-4" v-if="loan.book.author">
-                                        {{ loan.book.author.name }}
-                                    </div>
                                 </div>
                                 <span v-else class="text-danger">Книга видалена</span>
                             </td>
@@ -157,6 +154,11 @@
                             </td>
 
                             <td class="text-end">
+                                <button class="btn btn-sm btn-outline-primary me-1"
+                                        @click="openEditModal(loan)"
+                                        title="Редагувати запис">
+                                    <i class="bi bi-pencil-fill"></i>
+                                </button>
                                 <button class="btn btn-sm btn-outline-danger"
                                         @click="deleteLoan(loan)"
                                         title="Видалити запис з історії">
@@ -178,7 +180,63 @@
                 Всього записів: {{ loans.length }}
             </div>
         </div>
+
+        <div v-if="showModal">
+            <div class="modal-overlay" @click="closeModal"></div>
+            <div class="modal show" tabindex="-1">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Редагування позики #{{ currentLoan.id }}</h5>
+                            <button type="button" class="btn-close" @click="closeModal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <form @submit.prevent="saveLoan">
+                                <div class="mb-3">
+                                    <label class="form-label">Книга</label>
+                                    <select v-model="currentLoan.book.id" class="form-select" required>
+                                        <option v-for="book in booksList" :value="book.id">
+                                            {{ book.title }} ({{ book.copies }} в наявності)
+                                        </option>
+                                    </select>
+                                    <div class="form-text text-warning" v-if="currentLoan.book.id !== originalLoan.book?.id">
+                                        Увага: зміна книги вплине на облік кількості копій.
+                                    </div>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label">Читач</label>
+                                    <select v-model="currentLoan.reader.id" class="form-select" required>
+                                        <option v-for="reader in readersList" :value="reader.id">
+                                            {{ reader.name }} ({{ reader.email }})
+                                        </option>
+                                    </select>
+                                </div>
+
+                                <div class="row">
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label">Дата видачі</label>
+                                        <input v-model="formIssueDate" type="datetime-local" class="form-control" required>
+                                    </div>
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label">Дата повернення</label>
+                                        <input v-model="formReturnDate" type="datetime-local" class="form-control">
+                                        <div class="form-text">Очистіть це поле, якщо книга ще на руках.</div>
+                                    </div>
+                                </div>
+
+                                <div class="d-grid">
+                                    <button type="submit" class="btn btn-primary">Зберегти зміни</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
     </div>
+
     <div v-if="showSearchModal">
         <div class="modal-overlay" @click="closeSearchModal"></div>
         <div class="modal show" tabindex="-1">
@@ -189,7 +247,6 @@
                         <button type="button" class="btn-close" @click="closeSearchModal"></button>
                     </div>
                     <div class="modal-body">
-
                         <form @submit.prevent="performSearch" class="mb-4">
                             <div class="input-group input-group-lg">
                                 <select v-model="searchType" class="form-select" style="max-width: 150px; background-color: #f8f9fa;">
@@ -201,43 +258,24 @@
                                 <button class="btn btn-primary" type="submit">Знайти</button>
                             </div>
                         </form>
-
                         <div v-if="isSearching" class="text-center py-4">
                             <div class="spinner-border text-primary"></div>
                         </div>
-
                         <div v-else-if="searchResults.length > 0">
-                            <h6 class="text-muted mb-3">Знайдено {{ searchResults.length }} результатів:</h6>
                             <div class="list-group">
                                 <a v-for="item in searchResults" :key="item.id"
                                    :href="getLink(item)"
                                    class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
-
                                     <div>
-                                        <span v-if="searchType === 'books'">
-                                            <i class="bi bi-book me-2 text-primary"></i> <strong>{{ item.title }}</strong>
-                                            <small class="text-muted ms-2" v-if="item.author">by {{ item.author.name }}</small>
-                                        </span>
-                                        <span v-else-if="searchType === 'authors'">
-                                            <i class="bi bi-person-fill me-2 text-success"></i> <strong>{{ item.name }}</strong>
-                                            <small class="text-muted ms-2">{{ item.nationality }}</small>
-                                        </span>
-                                        <span v-else>
-                                            <i class="bi bi-person-badge me-2 text-warning"></i> <strong>{{ item.name }}</strong>
-                                            <small class="text-muted ms-2">{{ item.phone }}</small>
-                                        </span>
+                                        <strong>{{ item.name || item.title }}</strong>
                                     </div>
-
                                     <i class="bi bi-chevron-right text-muted small"></i>
                                 </a>
                             </div>
                         </div>
-
                         <div v-else-if="hasSearched" class="text-center py-5 text-muted">
-                            <i class="bi bi-emoji-frown display-4 mb-2 d-block"></i>
-                            Нічого не знайдено. Спробуйте інший запит.
+                            Нічого не знайдено.
                         </div>
-
                     </div>
                 </div>
             </div>
@@ -255,8 +293,18 @@
         data() {
             return {
                 loans: [],
+                booksList: [],
+                readersList: [],
                 loading: true,
                 error: null,
+
+                showModal: false,
+                currentLoan: { book: {}, reader: {} },
+                originalLoan: {},
+
+                formIssueDate: '',
+                formReturnDate: '',
+
                 showSearchModal: false,
                 searchQuery: '',
                 searchType: 'books',
@@ -289,6 +337,63 @@
                     this.loading = false;
                 }
             },
+
+            async loadDictionaries() {
+                if (this.booksList.length > 0 && this.readersList.length > 0) return;
+                try {
+                    const [booksRes, readersRes] = await Promise.all([
+                        fetch(`${API_URL}/books`),
+                        fetch(`${API_URL}/readers`)
+                    ]);
+                    if(booksRes.ok) this.booksList = await booksRes.json();
+                    if(readersRes.ok) this.readersList = await readersRes.json();
+                } catch(e) {
+                    alert("Не вдалося завантажити довідники");
+                }
+            },
+
+            async openEditModal(loan) {
+                await this.loadDictionaries();
+
+                this.currentLoan = JSON.parse(JSON.stringify(loan));
+                this.originalLoan = JSON.parse(JSON.stringify(loan));
+
+                this.formIssueDate = loan.issueDate ? loan.issueDate.slice(0, 16) : '';
+                this.formReturnDate = loan.returnDate ? loan.returnDate.slice(0, 16) : '';
+
+                this.showModal = true;
+            },
+
+            closeModal() {
+                this.showModal = false;
+                this.currentLoan = { book: {}, reader: {} };
+            },
+
+            async saveLoan() {
+                this.currentLoan.issueDate = this.formIssueDate ? new Date(this.formIssueDate).toISOString() : null;
+                this.currentLoan.returnDate = this.formReturnDate ? new Date(this.formReturnDate).toISOString() : null;
+
+                try {
+                    const response = await fetch(`${API_URL}/loans/${this.currentLoan.id}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(this.currentLoan)
+                    });
+
+                    if (response.ok) {
+                        alert("Запис оновлено!");
+                        this.closeModal();
+                        this.loadData();
+                    } else {
+                        const err = await response.json().catch(() => ({}));
+                        alert("Помилка: " + (err.message || response.status));
+                    }
+                } catch (err) {
+                    alert("Помилка сервера");
+                    console.error(err);
+                }
+            },
+
             formatDateTime(dateStr) {
                 if(!dateStr) return '';
                 return new Date(dateStr).toLocaleString('uk-UA', {

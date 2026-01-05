@@ -11,7 +11,7 @@
         body { background-color: #f4f7f6; font-family: 'Segoe UI', Tahoma, sans-serif; }
 
         .position-section-title {
-            border-left: 5px solid #dc3545; /* Червоний колір для персоналу */
+            border-left: 5px solid #dc3545;
             padding-left: 15px; margin-top: 40px; margin-bottom: 20px;
             color: #2c3e50; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
         }
@@ -48,19 +48,34 @@
         .modal-overlay { background: rgba(0,0,0,0.5); position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1040; display: block; }
         .modal.show { display: block; }
 
-        .btn-delete-card {
+        .card-actions {
             position: absolute;
-            top: 10px; right: 10px; z-index: 10;
-            background: rgba(255, 255, 255, 0.8);
-            border: none; color: #dc3545;
+            top: 10px;
+            right: 10px;
+            z-index: 10;
+            display: flex;
+            gap: 8px;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        .staff-card:hover .card-actions { opacity: 1; }
+
+        .action-btn-circle {
+            border: none;
             border-radius: 50%;
             width: 32px; height: 32px;
             display: flex; align-items: center; justify-content: center;
             transition: all 0.2s;
-            opacity: 0;
+            cursor: pointer;
         }
-        .staff-card:hover .btn-delete-card { opacity: 1; }
+
+        .btn-delete-card { background: rgba(255, 255, 255, 0.9); color: #dc3545; }
         .btn-delete-card:hover { background: #dc3545; color: white; transform: scale(1.1); }
+
+        .btn-edit-card { background: rgba(255, 255, 255, 0.9); color: #0d6efd; }
+        .btn-edit-card:hover { background: #0d6efd; color: white; transform: scale(1.1); }
+
     </style>
 </head>
 <body>
@@ -122,11 +137,18 @@
                     <div class="col" v-for="lib in staffGroup" :key="lib.id">
                         <div class="staff-card h-100 position-relative">
 
-                            <button class="btn-delete-card shadow-sm"
-                                    @click="deleteLibrarian(lib)"
-                                    title="Звільнити співробітника">
-                                <i class="bi bi-trash"></i>
-                            </button>
+                            <div class="card-actions">
+                                <button class="action-btn-circle btn-edit-card shadow-sm"
+                                        @click="openEditModal(lib)"
+                                        title="Редагувати">
+                                    <i class="bi bi-pencil-fill"></i>
+                                </button>
+                                <button class="action-btn-circle btn-delete-card shadow-sm"
+                                        @click="deleteLibrarian(lib)"
+                                        title="Звільнити співробітника">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </div>
 
                             <div class="card-header-staff">
                                 <div class="staff-avatar">
@@ -175,19 +197,21 @@
                 <div class="modal-dialog">
                     <div class="modal-content">
                         <div class="modal-header">
-                            <h5 class="modal-title">Новий співробітник</h5>
+                            <h5 class="modal-title">
+                                {{ isEditing ? 'Редагування співробітника' : 'Новий співробітник' }}
+                            </h5>
                             <button type="button" class="btn-close" @click="closeModal"></button>
                         </div>
                         <div class="modal-body">
                             <form @submit.prevent="saveLibrarian">
                                 <div class="mb-3">
                                     <label class="form-label">ПІБ</label>
-                                    <input v-model="newLibrarian.name" type="text" class="form-control" placeholder="Петренко Петро Петрович" required>
+                                    <input v-model="currentLibrarian.name" type="text" class="form-control" placeholder="Петренко Петро Петрович" required>
                                 </div>
 
                                 <div class="mb-3">
                                     <label class="form-label">Посада</label>
-                                    <select v-model="newLibrarian.position" class="form-select" required>
+                                    <select v-model="currentLibrarian.position" class="form-select" required>
                                         <option disabled value="">Оберіть посаду</option>
                                         <option value="ЗАВІДУВАЧ">Завідувач</option>
                                         <option value="ГОЛОВНИЙ_БІБЛІОТЕКАР">Головний бібліотекар</option>
@@ -200,16 +224,18 @@
                                 <div class="row">
                                     <div class="col-md-6 mb-3">
                                         <label class="form-label">Дата найму</label>
-                                        <input v-model="newLibrarian.hireDate" type="date" class="form-control" required>
+                                        <input v-model="currentLibrarian.hireDate" type="date" class="form-control" required>
                                     </div>
                                     <div class="col-md-6 mb-3">
                                         <label class="form-label">Зарплата (грн)</label>
-                                        <input v-model="newLibrarian.salary" type="number" step="0.01" class="form-control" required>
+                                        <input v-model="currentLibrarian.salary" type="number" step="0.01" class="form-control" required>
                                     </div>
                                 </div>
 
                                 <div class="d-grid">
-                                    <button type="submit" class="btn btn-danger">Зберегти</button>
+                                    <button type="submit" class="btn btn-danger">
+                                        {{ isEditing ? 'Оновити дані' : 'Зберегти' }}
+                                    </button>
                                 </div>
                             </form>
                         </div>
@@ -218,6 +244,7 @@
             </div>
         </div>
     </div>
+
     <div v-if="showSearchModal">
         <div class="modal-overlay" @click="closeSearchModal"></div>
         <div class="modal show" tabindex="-1">
@@ -299,7 +326,9 @@
                 loading: true,
                 error: null,
                 showModal: false,
-                newLibrarian: {
+                isEditing: false,
+                currentLibrarian: {
+                    id: null,
                     name: '',
                     position: '',
                     hireDate: new Date().toISOString().split('T')[0],
@@ -337,13 +366,33 @@
             },
 
             openAddModal() {
+                this.isEditing = false;
+                this.currentLibrarian = {
+                    id: null,
+                    name: '',
+                    position: '',
+                    hireDate: new Date().toISOString().split('T')[0],
+                    salary: 6700.00
+                };
+                this.showModal = true;
+            },
+
+            openEditModal(lib) {
+                this.isEditing = true;
+                this.currentLibrarian = JSON.parse(JSON.stringify(lib));
+
+                if(this.currentLibrarian.hireDate) {
+                    this.currentLibrarian.hireDate = this.currentLibrarian.hireDate.split('T')[0];
+                }
+
                 this.showModal = true;
             },
 
             closeModal() {
                 this.showModal = false;
-                this.newLibrarian = {
-                    name: '', position: '',
+                this.isEditing = false;
+                this.currentLibrarian = {
+                    id: null, name: '', position: '',
                     hireDate: new Date().toISOString().split('T')[0],
                     salary: 6700.00
                 };
@@ -351,14 +400,19 @@
 
             async saveLibrarian() {
                 try {
-                    const response = await fetch(`${API_URL}/librarians`, {
-                        method: 'POST',
+                    const method = this.isEditing ? 'PUT' : 'POST';
+                    const url = this.isEditing
+                        ? `${API_URL}/librarians/${this.currentLibrarian.id}`
+                        : `${API_URL}/librarians`;
+
+                    const response = await fetch(url, {
+                        method: method,
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(this.newLibrarian)
+                        body: JSON.stringify(this.currentLibrarian)
                     });
 
                     if (response.ok) {
-                        alert("Співробітника успішно додано!");
+                        alert(this.isEditing ? "Дані оновлено!" : "Співробітника успішно додано!");
                         this.closeModal();
                         this.loadData();
                     } else {

@@ -11,7 +11,7 @@
         body { background-color: #f4f7f6; font-family: 'Segoe UI', Tahoma, sans-serif; }
 
         .floor-section-title {
-            border-left: 5px solid #6610f2; /* Фіолетовий колір для залів */
+            border-left: 5px solid #6610f2;
             padding-left: 15px; margin-top: 40px; margin-bottom: 20px;
             color: #2c3e50; font-weight: 700; text-transform: uppercase;
         }
@@ -38,19 +38,34 @@
 
         .cursor-pointer { cursor: pointer; }
 
-        .btn-delete-card {
+        .card-actions {
             position: absolute;
-            top: 10px; right: 10px; z-index: 10;
-            background: rgba(255, 255, 255, 0.8);
-            border: none; color: #dc3545;
+            top: 10px;
+            right: 10px;
+            z-index: 10;
+            display: flex;
+            gap: 8px;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        .hall-card:hover .card-actions { opacity: 1; }
+
+        .action-btn-circle {
+            border: none;
             border-radius: 50%;
             width: 32px; height: 32px;
             display: flex; align-items: center; justify-content: center;
             transition: all 0.2s;
-            opacity: 0;
+            cursor: pointer;
         }
-        .hall-card:hover .btn-delete-card { opacity: 1; }
+
+        .btn-delete-card { background: rgba(255, 255, 255, 0.9); color: #dc3545; }
         .btn-delete-card:hover { background: #dc3545; color: white; transform: scale(1.1); }
+
+        .btn-edit-card { background: rgba(255, 255, 255, 0.9); color: #0d6efd; }
+        .btn-edit-card:hover { background: #0d6efd; color: white; transform: scale(1.1); }
+
     </style>
 </head>
 <body>
@@ -111,11 +126,18 @@
 
                         <div class="hall-card position-relative h-100 cursor-pointer" @click="goToHall(hall.id)">
 
-                            <button class="btn-delete-card shadow-sm"
-                                    @click.stop="deleteHall(hall)"
-                                    title="Видалити зал">
-                                <i class="bi bi-trash"></i>
-                            </button>
+                            <div class="card-actions">
+                                <button class="action-btn-circle btn-edit-card shadow-sm"
+                                        @click.stop="openEditModal(hall)"
+                                        title="Редагувати зал">
+                                    <i class="bi bi-pencil-fill"></i>
+                                </button>
+                                <button class="action-btn-circle btn-delete-card shadow-sm"
+                                        @click.stop="deleteHall(hall)"
+                                        title="Видалити зал">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </div>
 
                             <div class="card-header-img">
                                 <i class="bi bi-door-open-fill"></i>
@@ -154,23 +176,25 @@
                 <div class="modal-dialog">
                     <div class="modal-content">
                         <div class="modal-header">
-                            <h5 class="modal-title">Новий зал</h5>
+                            <h5 class="modal-title">
+                                {{ isEditing ? 'Редагування залу' : 'Новий зал' }}
+                            </h5>
                             <button type="button" class="btn-close" @click="closeModal"></button>
                         </div>
                         <div class="modal-body">
                             <form @submit.prevent="saveHall">
                                 <div class="mb-3">
                                     <label class="form-label">Назва залу</label>
-                                    <input v-model="newHall.name" type="text" class="form-control" placeholder="Напр. Зал художньої літератури" required>
+                                    <input v-model="currentHall.name" type="text" class="form-control" placeholder="Напр. Зал художньої літератури" required>
                                 </div>
                                 <div class="mb-3">
                                     <label class="form-label">Поверх</label>
-                                    <input v-model="newHall.floor" type="number" class="form-control" min="1" required>
+                                    <input v-model="currentHall.floor" type="number" class="form-control" min="1" required>
                                 </div>
 
                                 <div class="mb-3">
                                     <label class="form-label">Відповідальний бібліотекар</label>
-                                    <select v-model="newHall.librarian.id" class="form-select">
+                                    <select v-model="currentHall.librarian.id" class="form-select">
                                         <option value="" disabled>Оберіть співробітника</option>
                                         <option v-for="lib in librariansList" :value="lib.id">
                                             {{ lib.name }} ({{ lib.position }})
@@ -182,7 +206,9 @@
                                 </div>
 
                                 <div class="d-grid">
-                                    <button type="submit" class="btn btn-primary" style="background-color: #6610f2; border-color: #6610f2;">Створити зал</button>
+                                    <button type="submit" class="btn btn-primary" style="background-color: #6610f2; border-color: #6610f2;">
+                                        {{ isEditing ? 'Оновити' : 'Створити зал' }}
+                                    </button>
                                 </div>
                             </form>
                         </div>
@@ -191,6 +217,7 @@
             </div>
         </div>
     </div>
+
     <div v-if="showSearchModal">
         <div class="modal-overlay" @click="closeSearchModal"></div>
         <div class="modal show" tabindex="-1">
@@ -273,7 +300,9 @@
                 loading: true,
                 error: null,
                 showModal: false,
-                newHall: {
+                isEditing: false,
+                currentHall: {
+                    id: null,
                     name: '',
                     floor: 1,
                     librarian: { id: "" }
@@ -312,38 +341,64 @@
                 }
             },
 
-            async openAddModal() {
+            async fetchLibrarians() {
+                if (this.librariansList.length > 0) return;
                 try {
                     const res = await fetch(`${API_URL}/librarians`);
                     if(res.ok) {
                         this.librariansList = await res.json();
                     }
-                    this.showModal = true;
                 } catch(e) {
                     alert("Не вдалося завантажити список бібліотекарів");
                 }
             },
 
+            async openAddModal() {
+                await this.fetchLibrarians();
+                this.isEditing = false;
+                this.currentHall = { id: null, name: '', floor: 1, librarian: { id: "" } };
+                this.showModal = true;
+            },
+
+            async openEditModal(hall) {
+                await this.fetchLibrarians();
+                this.isEditing = true;
+
+                this.currentHall = JSON.parse(JSON.stringify(hall));
+
+                if (!this.currentHall.librarian) {
+                    this.currentHall.librarian = { id: "" };
+                }
+
+                this.showModal = true;
+            },
+
             closeModal() {
                 this.showModal = false;
-                this.newHall = { name: '', floor: 1, librarian: { id: "" } };
+                this.isEditing = false;
+                this.currentHall = { id: null, name: '', floor: 1, librarian: { id: "" } };
             },
 
             async saveHall() {
-                const payload = { ...this.newHall };
-                if (!payload.librarian.id) {
+                const payload = { ...this.currentHall };
+                if (!payload.librarian || !payload.librarian.id) {
                     payload.librarian = null;
                 }
 
                 try {
-                    const response = await fetch(`${API_URL}/halls`, {
-                        method: 'POST',
+                    const method = this.isEditing ? 'PUT' : 'POST';
+                    const url = this.isEditing
+                        ? `${API_URL}/halls/${this.currentHall.id}`
+                        : `${API_URL}/halls`;
+
+                    const response = await fetch(url, {
+                        method: method,
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(payload)
                     });
 
                     if (response.ok) {
-                        alert("Зал успішно створено!");
+                        alert(this.isEditing ? "Зал оновлено!" : "Зал успішно створено!");
                         this.closeModal();
                         this.loadData();
                     } else {

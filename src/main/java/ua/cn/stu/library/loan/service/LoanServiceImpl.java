@@ -8,8 +8,11 @@ import ua.cn.stu.library.generics.service.GenericServiceImpl;
 import ua.cn.stu.library.loan.dao.LoanRepository;
 import ua.cn.stu.library.models.Book;
 import ua.cn.stu.library.models.Loan;
+import ua.cn.stu.library.models.Reader;
+import ua.cn.stu.library.reader.dao.ReaderRepository;
 
 import java.time.LocalDateTime;
+import java.util.Objects;
 
 @Service
 @Transactional
@@ -17,11 +20,13 @@ class LoanServiceImpl extends GenericServiceImpl<Loan> implements LoanService {
 
     private final BookRepository bookRepository;
     private final LoanRepository loanRepository;
+    private final ReaderRepository readerRepository;
 
-    public LoanServiceImpl(LoanRepository loanRepository, BookRepository bookRepository) {
+    LoanServiceImpl(LoanRepository loanRepository, BookRepository bookRepository, ReaderRepository readerRepository) {
         super(loanRepository);
         this.loanRepository = loanRepository;
         this.bookRepository = bookRepository;
+        this.readerRepository = readerRepository;
     }
 
     @Override
@@ -29,46 +34,34 @@ class LoanServiceImpl extends GenericServiceImpl<Loan> implements LoanService {
         if (loan.getBook() == null || loan.getBook().getId() == null) {
             throw new IllegalArgumentException("Book ID is required");
         }
-        Integer bookId = loan.getBook().getId();
 
-        Book book = bookRepository.findById(bookId)
-                .orElseThrow(() -> new NotFoundException("Book not found with id: " + bookId));
+        Book book = performIssue(loan.getBook().getId());
 
-        if (book.getCopies() <= 0) {
-            throw new IllegalStateException("Всі примірники книги '" + book.getTitle() + "' вже видані!");
-        }
-
-        book.setCopies(book.getCopies() - 1);
-        bookRepository.save(book);
-
+        loan.setBook(book);
         if (loan.getIssueDate() == null) {
             loan.setIssueDate(LocalDateTime.now());
         }
-
         loan.setReturnDate(null);
-
-        loan.setBook(book);
 
         return super.save(loan);
     }
 
     @Override
-    public Loan update(Integer id, Loan updateLoanData) {
+    public Loan update(Integer id, Loan incomingData) {
         Loan existingLoan = loanRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("Loan not found with id: " + id));
 
-        boolean isReturning = existingLoan.getReturnDate() == null && updateLoanData.getReturnDate() != null;
+        handleBookSwap(existingLoan, incomingData.getBook());
 
-        if (isReturning) {
-            Book book = existingLoan.getBook();
+        handleReaderChange(existingLoan, incomingData.getReader());
 
-            book.setCopies(book.getCopies() + 1);
-            bookRepository.save(book);
+        handleReturnStatusChange(existingLoan, incomingData.getReturnDate());
 
-            existingLoan.setReturnDate(updateLoanData.getReturnDate());
-        } else if (existingLoan.getReturnDate() != null && updateLoanData.getReturnDate() != null) {
-            existingLoan.setReturnDate(updateLoanData.getReturnDate());
+        if (incomingData.getIssueDate() != null) {
+           existingLoan.setIssueDate(incomingData.getIssueDate());
         }
+
+        existingLoan.setReturnDate(incomingData.getReturnDate());
 
         return loanRepository.save(existingLoan);
     }
@@ -88,5 +81,63 @@ class LoanServiceImpl extends GenericServiceImpl<Loan> implements LoanService {
     @Transactional
     public void deleteReturnedLoans() {
         loanRepository.deleteByReturnDateIsNotNull();
+    }
+
+    private Book performIssue(Integer bookId) {
+        Book book = bookRepository.findById(bookId)
+                .orElseThrow(() -> new NotFoundException("Book not found with id: " + bookId));
+        adjustBookStock(book, -1);
+        return book;
+    }
+
+    private void handleBookSwap(Loan existingLoan, Book incomingBookData) {
+        if (incomingBookData == null || incomingBookData.getId() == null) return;
+
+        Integer oldBookId = existingLoan.getBook().getId();
+        Integer newBookId = incomingBookData.getId();
+
+        if (!Objects.equals(oldBookId, newBookId)) {
+            if (existingLoan.getReturnDate() == null) {
+                adjustBookStock(existingLoan.getBook(), 1);
+                Book newBook = performIssue(newBookId);
+                existingLoan.setBook(newBook);
+            } else {
+                Book newBook = bookRepository.findById(newBookId)
+                        .orElseThrow(() -> new NotFoundException("Book not found"));
+                existingLoan.setBook(newBook);
+            }
+        }
+    }
+
+    private void handleReturnStatusChange(Loan existingLoan, LocalDateTime newReturnDate) {
+        boolean wasReturned = existingLoan.getReturnDate() != null;
+        boolean willBeReturned = newReturnDate != null;
+
+        if (!wasReturned && willBeReturned) {
+            adjustBookStock(existingLoan.getBook(), 1);
+        } else if (wasReturned && !willBeReturned) {
+            adjustBookStock(existingLoan.getBook(), -1);
+        }
+    }
+
+    private void handleReaderChange(Loan existingLoan, Reader incomingReaderData) {
+        if (incomingReaderData != null && incomingReaderData.getId() != null) {
+            if (!Objects.equals(existingLoan.getReader().getId(), incomingReaderData.getId())) {
+                Reader newReader = readerRepository.findById(incomingReaderData.getId())
+                        .orElseThrow(() -> new NotFoundException("Reader not found"));
+                existingLoan.setReader(newReader);
+            }
+        }
+    }
+
+    private void adjustBookStock(Book book, int delta) {
+        int newCount = book.getCopies() + delta;
+
+        if (newCount < 0) {
+            throw new IllegalStateException("Операція неможлива: немає вільних примірників книги '" + book.getTitle() + "'");
+        }
+
+        book.setCopies(newCount);
+        bookRepository.save(book);
     }
 }

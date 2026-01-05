@@ -16,7 +16,7 @@ import java.time.LocalDateTime;
 public class Loan extends BaseEntity {
 
     @CreationTimestamp
-    @Column(name = "issue_date", nullable = false, updatable = false)
+    @Column(name = "issue_date", nullable = false)
     @Temporal(TemporalType.TIMESTAMP)
     private LocalDateTime issueDate;
 

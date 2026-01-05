@@ -19,12 +19,44 @@
         .card-header-img { height: 140px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); display: flex; align-items: center; justify-content: center; color: white; font-size: 3rem; }
         .book-title { font-weight: 700; font-size: 1.1rem; color: #333; margin-bottom: 0.5rem; }
         .book-meta { font-size: 0.9rem; color: #666; margin-bottom: 0.2rem; }
-        .status-badge { position: absolute; top: 15px; right: 15px; padding: 5px 10px; border-radius: 20px; font-size: 0.8rem; font-weight: 600; background-color: rgba(255, 255, 255, 0.9); }
+
+        /* Змінено позиціонування бейджа на ліву сторону */
+        .status-badge { position: absolute; top: 15px; left: 15px; padding: 5px 10px; border-radius: 20px; font-size: 0.8rem; font-weight: 600; background-color: rgba(255, 255, 255, 0.9); z-index: 5; }
         .status-available { color: #198754; }
         .status-out { color: #dc3545; }
 
         .modal-overlay { background: rgba(0,0,0,0.5); position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1040; display: block; }
         .modal.show { display: block; }
+
+        /* Стилі для кнопок дій (як в authors.html) */
+        .card-actions {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 10;
+            display: flex;
+            gap: 8px;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        .book-card:hover .card-actions { opacity: 1; }
+
+        .action-btn-circle {
+            border: none;
+            border-radius: 50%;
+            width: 32px; height: 32px;
+            display: flex; align-items: center; justify-content: center;
+            transition: all 0.2s;
+            cursor: pointer;
+        }
+
+        .btn-delete-card { background: rgba(255, 255, 255, 0.9); color: #dc3545; }
+        .btn-delete-card:hover { background: #dc3545; color: white; transform: scale(1.1); }
+
+        .btn-edit-card { background: rgba(255, 255, 255, 0.9); color: #0d6efd; }
+        .btn-edit-card:hover { background: #0d6efd; color: white; transform: scale(1.1); }
+
     </style>
 </head>
 <body>
@@ -95,26 +127,34 @@
                 <div class="row row-cols-1 row-cols-md-2 row-cols-lg-4 g-4">
                     <div class="col" v-for="book in booksInHall" :key="book.id">
                         <div class="book-card position-relative h-100">
+
                             <div class="status-badge" :class="book.copies > 0 ? 'status-available' : 'status-out'">
                                 <i :class="book.copies > 0 ? 'bi bi-check-circle-fill' : 'bi bi-x-circle-fill'"></i>
                             </div>
+
+                            <div class="card-actions">
+                                <button class="action-btn-circle btn-edit-card shadow-sm"
+                                        @click.stop="openEditModal(book)"
+                                        title="Редагувати книгу">
+                                    <i class="bi bi-pencil-fill"></i>
+                                </button>
+                                <button class="action-btn-circle btn-delete-card shadow-sm"
+                                        @click.stop="deleteBook(book)"
+                                        title="Видалити книгу">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </div>
+
                             <div class="card-header-img"><i class="bi bi-book"></i></div>
                             <div class="card-body d-flex flex-column">
                                 <h5 class="book-title text-truncate" :title="book.title">{{ book.title }}</h5>
                                 <p class="book-meta"><i class="bi bi-person-fill me-1"></i> {{ book.author?.name || '---' }}</p>
                                 <p class="book-meta"><i class="bi bi-calendar3 me-1"></i> {{ book.publicationYear }}</p>
 
-                                <hr class="mt-auto"> <div class="d-flex justify-content-between align-items-center">
-                                <span class="badge bg-light text-dark border">Копій: {{ book.copies }}</span>
-
-                                <div>
-                                    <button class="btn btn-sm btn-outline-danger me-1"
-                                            @click.stop="deleteBook(book)"
-                                            title="Видалити книгу">
-                                        <i class="bi bi-trash"></i>
-                                    </button>
+                                <hr class="mt-auto">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <span class="badge bg-light text-dark border">Копій: {{ book.copies }}</span>
                                 </div>
-                            </div>
                             </div>
                         </div>
                     </div>
@@ -135,41 +175,45 @@
                 <div class="modal-dialog">
                     <div class="modal-content">
                         <div class="modal-header">
-                            <h5 class="modal-title">Нова книга</h5>
+                            <h5 class="modal-title">
+                                {{ isEditing ? 'Редагування книги' : 'Нова книга' }}
+                            </h5>
                             <button type="button" class="btn-close" @click="closeModal"></button>
                         </div>
                         <div class="modal-body">
                             <form @submit.prevent="saveBook">
                                 <div class="mb-3">
                                     <label class="form-label">Назва книги</label>
-                                    <input v-model="newBook.title" type="text" class="form-control" required>
+                                    <input v-model="currentBook.title" type="text" class="form-control" required>
                                 </div>
                                 <div class="row">
                                     <div class="col-md-6 mb-3">
                                         <label class="form-label">Рік видання</label>
-                                        <input v-model="newBook.publicationYear" type="number" class="form-control" required>
+                                        <input v-model="currentBook.publicationYear" type="number" class="form-control" required>
                                     </div>
                                     <div class="col-md-6 mb-3">
                                         <label class="form-label">Кількість копій</label>
-                                        <input v-model="newBook.copies" type="number" class="form-control" min="0" required>
+                                        <input v-model="currentBook.copies" type="number" class="form-control" min="0" required>
                                     </div>
                                 </div>
                                 <div class="mb-3">
                                     <label class="form-label">Автор</label>
-                                    <select v-model="newBook.author.id" class="form-select" required>
+                                    <select v-model="currentBook.author.id" class="form-select" required>
                                         <option disabled value="">Оберіть автора</option>
                                         <option v-for="author in authorsList" :value="author.id">{{ author.name }}</option>
                                     </select>
                                 </div>
                                 <div class="mb-3">
                                     <label class="form-label">Зал</label>
-                                    <select v-model="newBook.hall.id" class="form-select" required>
+                                    <select v-model="currentBook.hall.id" class="form-select" required>
                                         <option disabled value="">Оберіть зал</option>
                                         <option v-for="hall in hallsList" :value="hall.id">{{ hall.name }} (Поверх {{ hall.floor }})</option>
                                     </select>
                                 </div>
                                 <div class="d-grid">
-                                    <button type="submit" class="btn btn-primary">Зберегти</button>
+                                    <button type="submit" class="btn btn-primary">
+                                        {{ isEditing ? 'Оновити' : 'Зберегти' }}
+                                    </button>
                                 </div>
                             </form>
                         </div>
@@ -177,6 +221,7 @@
                 </div>
             </div>
         </div>
+
         <div v-if="showSearchModal">
             <div class="modal-overlay" @click="closeSearchModal"></div>
             <div class="modal show" tabindex="-1">
@@ -262,9 +307,11 @@
                 loading: true,
                 error: null,
                 showModal: false,
-                newBook: {
+                isEditing: false,
+                currentBook: {
+                    id: null,
                     title: '',
-                    publicationYear: 2023,
+                    publicationYear: new Date().getFullYear(),
                     copies: 1,
                     author: { id: "" },
                     hall: { id: "" }
@@ -296,7 +343,9 @@
                 }
             },
 
-            async openAddModal() {
+            async loadDictionaries() {
+                if(this.authorsList.length > 0 && this.hallsList.length > 0) return;
+
                 try {
                     const [authorsRes, hallsRes] = await Promise.all([
                         fetch(`${API_URL}/authors`),
@@ -305,30 +354,60 @@
 
                     if(authorsRes.ok) this.authorsList = await authorsRes.json();
                     if(hallsRes.ok) this.hallsList = await hallsRes.json();
-                    this.showModal = true;
                 } catch(e) {
-                    alert("Не вдалося завантажити довідники");
+                    alert("Не вдалося завантажити списки авторів та залів");
                 }
+            },
+
+            async openAddModal() {
+                await this.loadDictionaries();
+                this.isEditing = false;
+                this.currentBook = {
+                    id: null,
+                    title: '',
+                    publicationYear: new Date().getFullYear(),
+                    copies: 1,
+                    author: { id: "" },
+                    hall: { id: "" }
+                };
+                this.showModal = true;
+            },
+
+            async openEditModal(book) {
+                await this.loadDictionaries();
+                this.isEditing = true;
+                this.currentBook = JSON.parse(JSON.stringify(book));
+
+                if (!this.currentBook.author) this.currentBook.author = { id: "" };
+                if (!this.currentBook.hall) this.currentBook.hall = { id: "" };
+
+                this.showModal = true;
             },
 
             closeModal() {
                 this.showModal = false;
-                this.newBook = {
-                    title: '', publicationYear: 2023, copies: 1,
+                this.isEditing = false;
+                this.currentBook = {
+                    id: null, title: '', publicationYear: 2023, copies: 1,
                     author: { id: "" }, hall: { id: "" }
                 };
             },
 
             async saveBook() {
                 try {
-                    const response = await fetch(`${API_URL}/books`, {
-                        method: 'POST',
+                    const method = this.isEditing ? 'PUT' : 'POST';
+                    const url = this.isEditing
+                        ? `${API_URL}/books/${this.currentBook.id}`
+                        : `${API_URL}/books`;
+
+                    const response = await fetch(url, {
+                        method: method,
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(this.newBook)
+                        body: JSON.stringify(this.currentBook)
                     });
 
                     if (response.ok) {
-                        alert("Успішно додано!");
+                        alert(this.isEditing ? "Книгу оновлено!" : "Книгу успішно додано!");
                         this.closeModal();
                         this.loadData();
                     } else {

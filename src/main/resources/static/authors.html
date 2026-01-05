@@ -41,27 +41,42 @@
 
         .cursor-pointer { cursor: pointer; }
 
-        .btn-delete-card {
+        .card-actions {
             position: absolute;
             top: 10px;
             right: 10px;
             z-index: 10;
-            background: rgba(255, 255, 255, 0.8);
+            display: flex;
+            gap: 8px;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        .author-card:hover .card-actions {
+            opacity: 1;
+        }
+
+        .action-btn-circle {
             border: none;
-            color: #dc3545;
             border-radius: 50%;
             width: 32px; height: 32px;
             display: flex; align-items: center; justify-content: center;
             transition: all 0.2s;
-            opacity: 0;
+            cursor: pointer;
         }
 
-        .author-card:hover .btn-delete-card {
-            opacity: 1;
+        .btn-delete-card {
+            background: rgba(255, 255, 255, 0.9);
+            color: #dc3545;
         }
-        .btn-delete-card:hover {
-            background: #dc3545; color: white; transform: scale(1.1);
+        .btn-delete-card:hover { background: #dc3545; color: white; transform: scale(1.1); }
+
+        .btn-edit-card {
+            background: rgba(255, 255, 255, 0.9);
+            color: #0d6efd;
         }
+        .btn-edit-card:hover { background: #0d6efd; color: white; transform: scale(1.1); }
+
     </style>
 </head>
 <body>
@@ -132,11 +147,18 @@
                     <div class="col" v-for="author in authorsGroup" :key="author.id">
                         <div class="author-card position-relative h-100 cursor-pointer" @click="goToProfile(author.id)">
 
-                            <button class="btn-delete-card shadow-sm"
-                                    @click.stop="deleteAuthor(author)"
-                                    title="Видалити автора">
-                                <i class="bi bi-trash"></i>
-                            </button>
+                            <div class="card-actions">
+                                <button class="action-btn-circle btn-edit-card shadow-sm"
+                                        @click.stop="openEditModal(author)"
+                                        title="Редагувати">
+                                    <i class="bi bi-pencil-fill"></i>
+                                </button>
+                                <button class="action-btn-circle btn-delete-card shadow-sm"
+                                        @click.stop="deleteAuthor(author)"
+                                        title="Видалити">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </div>
 
                             <div class="card-header-img">
                                 <i class="bi bi-person-fill"></i>
@@ -168,27 +190,31 @@
                 <div class="modal-dialog">
                     <div class="modal-content">
                         <div class="modal-header">
-                            <h5 class="modal-title">Новий автор</h5>
+                            <h5 class="modal-title">
+                                {{ isEditing ? 'Редагування автора' : 'Новий автор' }}
+                            </h5>
                             <button type="button" class="btn-close" @click="closeModal"></button>
                         </div>
                         <div class="modal-body">
                             <form @submit.prevent="saveAuthor">
                                 <div class="mb-3">
                                     <label class="form-label">Ім'я та Прізвище</label>
-                                    <input v-model="newAuthor.name" type="text" class="form-control" placeholder="Тарас Шевченко" required>
+                                    <input v-model="currentAuthor.name" type="text" class="form-control" placeholder="Тарас Шевченко" required>
                                 </div>
                                 <div class="mb-3">
                                     <label class="form-label">Національність</label>
-                                    <input v-model="newAuthor.nationality" type="text" class="form-control" placeholder="Україна" required>
+                                    <input v-model="currentAuthor.nationality" type="text" class="form-control" placeholder="Україна" required>
                                     <div class="form-text">Це поле використовується для групування.</div>
                                 </div>
                                 <div class="mb-3">
                                     <label class="form-label">Дата народження</label>
-                                    <input v-model="newAuthor.birthDate" type="date" class="form-control" required>
+                                    <input v-model="currentAuthor.birthDate" type="date" class="form-control" required>
                                 </div>
 
                                 <div class="d-grid">
-                                    <button type="submit" class="btn btn-success">Зберегти автора</button>
+                                    <button type="submit" class="btn btn-success">
+                                        {{ isEditing ? 'Оновити' : 'Зберегти' }}
+                                    </button>
                                 </div>
                             </form>
                         </div>
@@ -198,6 +224,7 @@
         </div>
 
     </div>
+
     <div v-if="showSearchModal">
         <div class="modal-overlay" @click="closeSearchModal"></div>
         <div class="modal show" tabindex="-1">
@@ -279,7 +306,9 @@
                 loading: true,
                 error: null,
                 showModal: false,
-                newAuthor: {
+                isEditing: false,
+                currentAuthor: {
+                    id: null,
                     name: '',
                     nationality: '',
                     birthDate: ''
@@ -316,24 +345,43 @@
             },
 
             openAddModal() {
+                this.isEditing = false;
+                this.currentAuthor = { id: null, name: '', nationality: '', birthDate: '' };
+                this.showModal = true;
+            },
+
+            openEditModal(author) {
+                this.isEditing = true;
+                this.currentAuthor = { ...author };
+
+                if (this.currentAuthor.birthDate) {
+                    this.currentAuthor.birthDate = this.currentAuthor.birthDate.split('T')[0];
+                }
+
                 this.showModal = true;
             },
 
             closeModal() {
                 this.showModal = false;
-                this.newAuthor = { name: '', nationality: '', birthDate: '' };
+                this.isEditing = false;
+                this.currentAuthor = { id: null, name: '', nationality: '', birthDate: '' };
             },
 
             async saveAuthor() {
                 try {
-                    const response = await fetch(`${API_URL}/authors`, {
-                        method: 'POST',
+                    const method = this.isEditing ? 'PUT' : 'POST';
+                    const url = this.isEditing
+                        ? `${API_URL}/authors/${this.currentAuthor.id}`
+                        : `${API_URL}/authors`;
+
+                    const response = await fetch(url, {
+                        method: method,
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(this.newAuthor)
+                        body: JSON.stringify(this.currentAuthor)
                     });
 
                     if (response.ok) {
-                        alert("Автора успішно додано!");
+                        alert(this.isEditing ? "Дані автора оновлено!" : "Автора успішно додано!");
                         this.closeModal();
                         this.loadData();
                     } else {
@@ -342,6 +390,7 @@
                     }
                 } catch (err) {
                     alert("Помилка сервера");
+                    console.error(err);
                 }
             },
 
